@@ -35,7 +35,7 @@ typedef struct {
 
 
 void drawButton(Area *button, byte has_focus);
-void drawScreen(int screen_index);
+void drawScreen();
 void refreshScreen (int button_list[]);
 //void Menu0(void);
 void changePosition(int move);

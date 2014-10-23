@@ -144,60 +144,62 @@ void drawButton(Area *button, byte has_focus) {
 	Screen.text(text_out, button->x +text_padding, button->y +text_padding);
 };
 
-void drawScreen(int screen_index) {
+void drawScreen() {
  // parcourt tous les boutons sans exception pour l'initialisation de l'écran
-	for(int i ; i<interface[screen_index].p; i++){
-		if (i==Position) {drawButton(&(interface[screen_index].buttons[i]), 1);
-		} else { drawButton(&(interface[screen_index].buttons[i]), 0);}
+	for(int i ; i<interface[Current_screen].p; i++){
+		if (i==Position) {drawButton(&(interface[Current_screen].buttons[i]), 1);
+		} else { drawButton(&(interface[Current_screen].buttons[i]), 0);}
 	}
 	doRefresh=0;
 };
 
 void changeScreen(int screen_index) {
 	//Declenche le trigger pour un rafraichissement lors de la boucle
-	doRefresh=1;
-	Position=0; 
 	Current_screen=screen_index;
+	Position=0; 
+	doRefresh=1;
+
 };
 
+//TODO : use this function with Current_screen
 /*
 void refreshScreen (int button_list[]) {
   // parcourt la liste des boutons à rafraichir et rafraichi ceux là uniquement; 
 	for(int i; i<sizeof(button_list)+1;i++){
 		drawButton(interface[Current_screen].buttons[button_list[i]],0);
 	}
-};
-*/
+};*/
+
 
 
 void setup() {
   //INTERFACE UTILISATEUR
   // Initialisation de l'ecran
- Screen.begin();
+	Screen.begin();
  // Trois valeurs de rotation possible 0, 1, 2, 3 correspondant à 0°, 90°, 180° et 270°
- Screen.setRotation(3);
+	Screen.setRotation(3);
  // Fond noir
- Screen.background(0,0,0);
+	Screen.background(0,0,0);
  
  // Interruption de l'encodeur (les resistances pull up de l'arduino ne sont pas utilisés)
- pinMode(2, INPUT);
- pinMode(4,INPUT);
- attachInterrupt(0, doEncoder, RISING); //to get only half of the transition, changed from CHANGE to RISING or FALLING
+	pinMode(2, INPUT);
+ 	pinMode(4,INPUT);
+ 	attachInterrupt(0, doEncoder, RISING); //to get only half of the transition, changed from CHANGE to RISING or FALLING
  // Interruption du bouton de l'encodeur
  // TODO : check the pcb because the pin3 doesn't work !!!
 // use the pushbutton for enter
- pinMode(3,INPUT);
- attachInterrupt(1, doClick, RISING); // only when pushed not released
+	pinMode(3,INPUT);
+	attachInterrupt(1, doClick, RISING); // only when pushed not released
  
- // Initialisation du bouton poussoir
- pinMode(PB, INPUT);
+// Initialisation du bouton poussoir
+	pinMode(PB, INPUT);
  
  // CAPTEURS
  // Initialisation du thermometre 
-Thermometer.begin();
+	Thermometer.begin();
 // En fonction de la resolution, il est necessaire de mettre un delai de 93,75ms pour 9 bits, 187,5ms pour 10 bits, 375 pour 11 bits et 750ms pour 12 bits
-Thermometer.setResolution(ThermometerAdress,10);
-Thermometer.setWaitForConversion(false);  // rend la requete asynchrone, il faut donc mettre un delay dans la loop pour attendre apres un request
+	Thermometer.setResolution(ThermometerAdress,10);
+	Thermometer.setWaitForConversion(false);  // rend la requete asynchrone, il faut donc mettre un delay dans la loop pour attendre apres un request
  
 
 
@@ -207,7 +209,7 @@ Thermometer.setWaitForConversion(false);  // rend la requete asynchrone, il faut
 // EFFECTEURS
 
 //Dessine l'écran de demarrage
-  Current_screen=0;
+	Current_screen=0;
   //drawScreen(Current_screen);
 }
 
@@ -218,7 +220,8 @@ void loop() {
   delay(190); // a diminuer en fonction de la duree de analog read qu'il faut mesurer
   temp=Thermometer.getTempC(ThermometerAdress);
   if (analogRead(A7) >500) { doClick(); delay(100);}
-  if (doRefresh) {drawScreen(Current_screen);}
+  if (doRefresh) {drawScreen();}
+  
 }
 
 void doEncoder(void) {
