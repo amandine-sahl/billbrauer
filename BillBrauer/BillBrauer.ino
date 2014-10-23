@@ -4,7 +4,7 @@ BillBrauer est une cuve de brassage avec moteur, une balance integré avec stock
 
 #include <TFT.h>
 #include <SPI.h>
-#include <SD.h>
+//#include <SD.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include "BillBrauer.h"
@@ -52,24 +52,13 @@ TFT Screen = TFT (10,9,-1);
 //Thermometer
 OneWire oneWire(A3);
 DallasTemperature Thermometer(&oneWire);
-
-DeviceAddress ThermometerAdress;
-
-
+DeviceAddress ThermometerAdress={0x28,0x3E,0x40,0xCD,0x05,0x00,0x00,0x98};
 
 // Position de l'encodeur
 volatile unsigned int Position=0;
 volatile uint8_t Current_screen;
 volatile uint8_t doRefresh=1;
-// Variables pour le bouton
-int button_state=1;
-int button_reading;
-int button_previous=0;
-long button_time=0;
-long button_debounce=200;
-
-
-//volatile int Previous_screen=0;
+float temp=0;
 
 // VARIABLES CAPTEURS (regulierement mise à jour dans la loop)
 // Temperature actuelle : en degres
@@ -91,44 +80,41 @@ long button_debounce=200;
 // Zone valeurs affichées : position x, position y, largeur, hauteur, pointeur variable globale
 // TODO:le nombre de boutons donnera le nombre de positions par ecran
 
-//define a type for pointer of function with an argument
-
-
-int test_valeur = 1;
-int test_valeur_2= 5;
+float test_valeur = 1.0;
+float test_valeur_2= 5.0;
 
 void Menu0(void) {changeScreen(0);};
 void Menu1(void) {changeScreen(1);};
 void Menu2(void) {changeScreen(2);};
+void Menu3(void) {changeScreen(3);};
 
-
-// il faut passer les arguments  à la fonction au moment où elle est appeler, et elle prend forcément deux arguments à choisir dans les autres paramètre de la structure
-static Page interface[3] = 
+static Page interface[4] = 
 {
-        {1,
-        2,
-           {},
+        {1,2,{},
             {
-            {10,10,140,50,BLACK,RED,"Manuel" ,&test_valeur , Menu1  },
-            {10,65,140,50, BLACK,RED,"Automatique" ,&test_valeur_2 , Menu2  }
+            {10,10,140,50,BLACK,RED,"Manuel" ,NULL , Menu1  },
+            {10,65,140,50, BLACK,RED,"Automatique" ,NULL , Menu2  }
             }
         },
-	{2,
-        3,
-           {},
+	{2,3,{},
             {
-            {10,10,140,30,BLACK,RED,"Balance" ,&test_valeur , Menu0 },
-            {10,45,140,30, BLACK,RED,"Thermostat",&test_valeur_2 , Menu0 },
-	    {10,80,140,30, BLACK, RED,"Moteur",&test_valeur_2, Menu0 }
+            {10,10,140,30,BLACK,RED,"Balance" ,NULL , Menu0 },
+            {10,45,140,30, BLACK,RED,"Thermostat",NULL , Menu3 },
+	    {10,80,140,30, BLACK, RED,"Moteur",NULL, Menu0 }
             }
         },
-	{3,
-        3,
-           {},
+	{3,3,{},
             {
-            {10,10,140,30,BLACK,RED,  "Eau" ,&test_valeur , Menu0 },
-            {10,45,140,30, BLACK,RED,  "Malt",&test_valeur_2 , Menu0 },
-	    {10,80,140,30, BLACK, RED,  "Back",&test_valeur, Menu0 }
+            {10,10,140,30,BLACK,RED,  "Eau" ,NULL , Menu0 },
+            {10,45,140,30, BLACK,RED,  "Malt",NULL , Menu0 },
+	    {10,80,140,30, BLACK, RED,  "Back",NULL, Menu0 }
+            }
+        },
+	{4,3,{},
+            {
+            {10,10,140,30,BLACK,RED,  "Temp : " ,&temp , Menu0 },
+            {10,45,140,30, BLACK,RED,  "Masse",NULL , Menu0 },
+	    {10,80,140,30, BLACK, RED,  "Back",NULL, Menu0 }
             }
         }
 };
@@ -150,19 +136,15 @@ void drawButton(Area *button, byte has_focus) {
 	Screen.fillRoundRect(button->x,button->y,button->w,button->h,area_radius,background_color);
 	Screen.setTextColor ( BLACK, background_color);
 	Screen.setTextSize (text_size);
-	//char int_text[20];
-	//char* text_out=button->c;
-	//sprintf(int_text, ": %d",button->v);
-	int value = (*button->v);
-
-	//Serial.print(value);
-	//Serial.println(value);
-	//if (button->v !=NULL) {sprintf(int_text, ": %d",button->v); strcat(text_out, int_text);}
-	Screen.text(button->c, button->x +text_padding, button->y +text_padding);
+	char float_text[5];
+	char text_out[20];
+	strcpy(text_out, button->c);
+	//Si le bouton posséde une valeur à afficher : afficher cette valeur
+	if (button->v !=NULL) {dtostrf((*button->v),4,1,float_text); strcat(text_out, float_text);}
+	Screen.text(text_out, button->x +text_padding, button->y +text_padding);
 };
 
 void drawScreen(int screen_index) {
-	//Serial.print("Hello"); // WHY DOES THIS BROKE EVERYTHING
  // parcourt tous les boutons sans exception pour l'initialisation de l'écran
 	for(int i ; i<interface[screen_index].p; i++){
 		if (i==Position) {drawButton(&(interface[screen_index].buttons[i]), 1);
@@ -172,10 +154,10 @@ void drawScreen(int screen_index) {
 };
 
 void changeScreen(int screen_index) {
+	//Declenche le trigger pour un rafraichissement lors de la boucle
 	doRefresh=1;
 	Position=0; 
 	Current_screen=screen_index;
-	//drawScreen(screen_index);
 };
 
 /*
@@ -188,13 +170,8 @@ void refreshScreen (int button_list[]) {
 */
 
 
-
-
 void setup() {
   //INTERFACE UTILISATEUR
- Serial.begin(115200);
- delay(500);
- Serial.print(F("start"));
   // Initialisation de l'ecran
  Screen.begin();
  // Trois valeurs de rotation possible 0, 1, 2, 3 correspondant à 0°, 90°, 180° et 270°
@@ -237,35 +214,15 @@ Thermometer.setWaitForConversion(false);  // rend la requete asynchrone, il faut
 void loop() {
   // Request Temperature
   Thermometer.requestTemperatures();
-  int analogWeight=analogRead(A6); // prend 1ms normalement, il faut en faire plusieurs et faire une moyenne
+  //int analogWeight=analogRead(A6); // prend 1ms normalement, il faut en faire plusieurs et faire une moyenne
   delay(190); // a diminuer en fonction de la duree de analog read qu'il faut mesurer
-  float temp=Thermometer.getTempC(ThermometerAdress);
-  //TODO : understand WHY EVERYTHING IS LOST WHEN THERE IS A MISTAKE OR NEW STUFF ADDED !!!!!!!!!!!!!
-// TODO : FIND A WAY TO USE THIS BUTTON !!! WHY!!!!!!!!
-  //checkPB();
+  temp=Thermometer.getTempC(ThermometerAdress);
   if (analogRead(A7) >500) { doClick(); delay(100);}
   if (doRefresh) {drawScreen(Current_screen);}
 }
 
-void checkPB(void) {
-	button_reading=analogRead(A7);
-	if (button_reading > 1000 && button_previous < 1000 && millis() - button_time > button_debounce) {
-  		if (button_state>1000) { button_state=0;} else {button_state=1023;};
-   		millis();
-  	};
-  	if (button_state>1000) { printhello();};
-  	button_previous=button_reading;
-}
-
 void doEncoder(void) {
-  /* If pinA and pinB are both high or both low, it is spinning
-   * forward. If they're different, it's going backward.
-   *
-   * For more information on speeding up this process, see
-   * [Reference/PortManipulation], specifically the PIND register.
-   */
-
-  if (digitalRead(ENC_A) == digitalRead(ENC_B)) {
+   if (digitalRead(ENC_A) == digitalRead(ENC_B)) {
     // si edition valeur , doit incrementer la valeur
     // si changement position focus, doit changer focus
     // incremente dans les autres cas
@@ -287,20 +244,14 @@ void changePosition(int move){
 		Position=screen_pos_max;
 	} else{ Position--;};
    }
-   //Serial.print("Hello");//ONE SERIAL AND NOTHING WORK ANYMORE !!!!
-   //drawScreen(Current_screen);
+   doRefresh=1;
 }
 
 void doClick(void) {
 // soit provoque un changement d'ecran
 // soit provoque une edition de valeurs
-	//Current_screen=Position;
-	//printhello();
  // efface l'ecran
  	Screen.background(0,0,0);
 	interface[Current_screen].buttons[Position].pf();
 }
 
-void printhello(void) {
-	Serial.print("I'm clicked");
-}
