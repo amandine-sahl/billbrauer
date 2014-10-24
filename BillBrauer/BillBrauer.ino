@@ -54,11 +54,23 @@ OneWire oneWire(A3);
 DallasTemperature Thermometer(&oneWire);
 DeviceAddress ThermometerAdress={0x28,0x3E,0x40,0xCD,0x05,0x00,0x00,0x98};
 
-// Position de l'encodeur
-volatile unsigned int Position=0;
-volatile uint8_t Current_screen;
-volatile uint8_t doRefresh=1;
-float temp=0;
+// Variables interfaces
+volatile unsigned char Position=0;
+volatile unsigned int Current_screen;
+volatile unsigned int doRefresh=1;
+
+// Variables capteurs
+float temp; //Temperature actuelle
+
+float temp_set; // Temperature de consigne pour le thermostat
+unsigned int weight_reading[10]; // Liste de 10 lectures de la valeur de 0 à 1023
+float weight=0; // Masse calculée à partir de la moyenne des lectures précédentes
+unsigned int tare_weights[2][2]; // Tares enregistrée TODO :à reporter dans un fichier de configuration à mettre sur la carte SD ??
+// Variables effecteurs
+unsigned char motor_speed=0; // Correspond à la vitesse du moteur souhaitée de 0 à 255
+bool heating_element=FALSE; // Correspond à l'état du moteur, il s'agit d'un booléen
+
+
 
 // VARIABLES CAPTEURS (regulierement mise à jour dans la loop)
 // Temperature actuelle : en degres
@@ -72,22 +84,19 @@ float temp=0;
 // Ecran : avant , maintenant, ensuite
 // Position focus  : depend de l'ecran 
 // Set/Ok : correspond à changement position ou edition valeur, depend si l'utilisateur edite le champ ou pas, change à la suite d'un click sur une valeur à changer
-// il n'y aura pas de variable position de l'encodeur car 
-// l'encodeur changera directement la valeur de la position correspondante a l'ecran
 
 
 // DEFINITION ECRANS (à ranger par position)
 // Zone valeurs affichées : position x, position y, largeur, hauteur, pointeur variable globale
 // TODO:le nombre de boutons donnera le nombre de positions par ecran
 
-float test_valeur = 1.0;
-float test_valeur_2= 5.0;
-
+// Définitions des fonctions de "callback"
 void Menu0(void) {changeScreen(0);};
 void Menu1(void) {changeScreen(1);};
 void Menu2(void) {changeScreen(2);};
 void Menu3(void) {changeScreen(3);};
 
+// Définitions des écrans et des zones d'affichage correspondantes
 static Page interface[4] = 
 {
         {1,2,{},
@@ -121,17 +130,18 @@ static Page interface[4] =
 
 //Page Current_screen;
 
+// CONFIGURATION AFFICHAGE
 // pour définir les bords des boutons
-static uint16_t area_radius=4;
+static unsigned int area_radius=4;
 // pour l'espacement du texte par rapport au bord supérieur gauche
-static uint16_t text_padding=5;
+static unsigned int text_padding=5;
 // défini la taille du texte : trois valeurs possibles : 1 (defaut), 2 ou 
-static uint16_t text_size=2;
+static unsigned int text_size=2;
 // couleur du cadre pour le bouton avec le focus
-static uint16_t focus_color=YELLOW;
+static unsigned int focus_color=YELLOW;
 
 void drawButton(Area *button, byte has_focus) {
-	uint16_t background_color;
+	unsigned int background_color;
 	if (has_focus==1) { background_color=focus_color;} else { background_color=button->b;};
 	Screen.fillRoundRect(button->x,button->y,button->w,button->h,area_radius,background_color);
 	Screen.setTextColor ( BLACK, background_color);
@@ -146,7 +156,7 @@ void drawButton(Area *button, byte has_focus) {
 
 void drawScreen() {
  // parcourt tous les boutons sans exception pour l'initialisation de l'écran
-	for(int i ; i<interface[Current_screen].p; i++){
+	for(unsigned int i ; i<interface[Current_screen].p; i++){
 		if (i==Position) {drawButton(&(interface[Current_screen].buttons[i]), 1);
 		} else { drawButton(&(interface[Current_screen].buttons[i]), 0);}
 	}
@@ -237,7 +247,7 @@ void doEncoder(void) {
 }
 
 void changePosition(int move){
-   int screen_pos_max=interface[Current_screen].p-1;
+   unsigned int screen_pos_max=interface[Current_screen].p-1;
    if (move==1){
 	if (Position==screen_pos_max){
 		Position=0;

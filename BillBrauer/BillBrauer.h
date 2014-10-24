@@ -2,12 +2,12 @@
 typedef void (*ptrf)();
 
 typedef struct {
-        uint16_t  x; // position X
-        uint16_t y; // postion Y
-        uint16_t w; // largeur
-        uint16_t h; // hauteur
-        uint16_t f; // couleur du texte // passage en byte possible ???
-        uint16_t b; // couleur d'arrière plan
+        unsigned int  x; // position X
+        unsigned int y; // postion Y
+        unsigned int w; // largeur
+        unsigned int h; // hauteur
+        unsigned int f; // couleur du texte // passage en byte possible ???
+        unsigned int b; // couleur d'arrière plan
 	//String c;  
 	char c[12]; // texte à rajouter ou texte dans le cas d'une zone non cliquable
 	float (*v); // pointeur vers une valeur en int, si NULL il s'agit d'un texte simple
