@@ -19,8 +19,8 @@ typedef struct {
 
 
 typedef struct {
-        byte x; // page number
-        byte p; // number of position needed because we need to fix the size of the array, TODO : we need to get a variable array size
+        unsigned char x; // page number
+        unsigned char p; // number of position needed because we need to fix the size of the array, TODO : we need to get a variable array size
         Area displayed[5]; // correspond aux affichages simples // pas plus de cinq ici par page
         Area buttons[5]; // correspond aux zones selectionnables, leur nombre conditionne la taille du tableau //pas plus de cing par page ici
   
@@ -34,7 +34,7 @@ typedef struct {
 }State;*/
 
 
-void drawButton(Area *button, byte has_focus);
+void drawButton(Area *button, bool has_focus);
 void drawScreen();
 void refreshScreen (int button_list[]);
 //void Menu0(void);
@@ -43,4 +43,4 @@ void doEncoder(void);
 void doClick(void);
 void printhello(void);
 void checkPB(void);
-void changeScreen(int screen_index);
+void changeScreen(unsigned int screen_index);

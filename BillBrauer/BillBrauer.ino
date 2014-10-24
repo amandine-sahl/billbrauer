@@ -56,8 +56,8 @@ DeviceAddress ThermometerAdress={0x28,0x3E,0x40,0xCD,0x05,0x00,0x00,0x98};
 
 // Variables interfaces
 volatile unsigned char Position=0;
-volatile unsigned int Current_screen;
-volatile unsigned int doRefresh=1;
+volatile unsigned int Current_screen; //try to use char instead !!
+volatile bool doRefresh=TRUE;
 
 // Variables capteurs
 float temp; //Temperature actuelle
@@ -140,9 +140,9 @@ static unsigned int text_size=2;
 // couleur du cadre pour le bouton avec le focus
 static unsigned int focus_color=YELLOW;
 
-void drawButton(Area *button, byte has_focus) {
+void drawButton(Area *button, bool has_focus) {
 	unsigned int background_color;
-	if (has_focus==1) { background_color=focus_color;} else { background_color=button->b;};
+	if (has_focus) { background_color=focus_color;} else { background_color=button->b;};
 	Screen.fillRoundRect(button->x,button->y,button->w,button->h,area_radius,background_color);
 	Screen.setTextColor ( BLACK, background_color);
 	Screen.setTextSize (text_size);
@@ -160,14 +160,14 @@ void drawScreen() {
 		if (i==Position) {drawButton(&(interface[Current_screen].buttons[i]), 1);
 		} else { drawButton(&(interface[Current_screen].buttons[i]), 0);}
 	}
-	doRefresh=0;
+	doRefresh=FALSE;
 };
 
-void changeScreen(int screen_index) {
+void changeScreen(unsigned int screen_index) {
 	//Declenche le trigger pour un rafraichissement lors de la boucle
 	Current_screen=screen_index;
 	Position=0; 
-	doRefresh=1;
+	doRefresh=TRUE;
 
 };
 
@@ -257,7 +257,7 @@ void changePosition(int move){
 		Position=screen_pos_max;
 	} else{ Position--;};
    }
-   doRefresh=1;
+   doRefresh=TRUE;
 }
 
 void doClick(void) {
