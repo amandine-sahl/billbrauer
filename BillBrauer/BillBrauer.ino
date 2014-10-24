@@ -56,7 +56,7 @@ DeviceAddress ThermometerAdress={0x28,0x3E,0x40,0xCD,0x05,0x00,0x00,0x98};
 
 // Variables interfaces
 volatile unsigned char Position=0;
-volatile unsigned int Current_screen; //try to use char instead !!
+volatile unsigned int Current_screen; //try to use char instead but i can't, maybe initialization
 volatile bool doRefresh=TRUE;
 
 // Variables capteurs
@@ -97,6 +97,7 @@ void Menu2(void) {changeScreen(2);};
 void Menu3(void) {changeScreen(3);};
 
 // Définitions des écrans et des zones d'affichage correspondantes
+// x[0,159] et y[0,127]
 static Page interface[4] = 
 {
         {1,2,{},
@@ -246,9 +247,9 @@ void doEncoder(void) {
   }
 }
 
-void changePosition(int move){
+void changePosition(bool move_forward){
    unsigned int screen_pos_max=interface[Current_screen].p-1;
-   if (move==1){
+   if (move_forward){
 	if (Position==screen_pos_max){
 		Position=0;
 	} else{ Position++;};

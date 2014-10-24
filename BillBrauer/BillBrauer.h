@@ -1,11 +1,13 @@
-//define a type for pointer of function with an argument
+//Definition d'un pointeur pour une fonction ptrf
 typedef void (*ptrf)();
 
+
+// Définition de la structure Area qui correspond soit à une bouton soit à un affichage simple
 typedef struct {
-        unsigned int  x; // position X
-        unsigned int y; // postion Y
-        unsigned int w; // largeur
-        unsigned int h; // hauteur
+        unsigned char  x; // position X
+        unsigned char y; // postion Y
+        unsigned char w; // largeur
+        unsigned char h; // hauteur
         unsigned int f; // couleur du texte // passage en byte possible ???
         unsigned int b; // couleur d'arrière plan
 	//String c;  
@@ -18,6 +20,7 @@ typedef struct {
 // Boutons valeurs ajustable (enter puis incremente puis enter) : position x, position y, largeur, hauteur, pointeur variable globale,  ??action set value
 
 
+// Définition de la structure Page qui correspond à un écran avec des boutons et des affichages
 typedef struct {
         unsigned char x; // page number
         unsigned char p; // number of position needed because we need to fix the size of the array, TODO : we need to get a variable array size
@@ -38,7 +41,7 @@ void drawButton(Area *button, bool has_focus);
 void drawScreen();
 void refreshScreen (int button_list[]);
 //void Menu0(void);
-void changePosition(int move);
+void changePosition(bool move_forward);
 void doEncoder(void);
 void doClick(void);
 void printhello(void);
