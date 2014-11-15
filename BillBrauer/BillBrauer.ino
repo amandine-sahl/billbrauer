@@ -100,27 +100,27 @@ void Menu3(void) {changeScreen(3);};
 // x[0,159] et y[0,127]
 static Page interface[4] = 
 {
-        {1,2,{},
+        {1,2,{},{},
             {
             {10,10,140,50,BLACK,RED,"Manuel" ,NULL , Menu1  },
             {10,65,140,50, BLACK,RED,"Automatique" ,NULL , Menu2  }
             }
         },
-	{2,3,{},
+	{2,3,{},{},
             {
             {10,10,140,30,BLACK,RED,"Balance" ,NULL , Menu0 },
             {10,45,140,30, BLACK,RED,"Thermostat",NULL , Menu3 },
 	    {10,80,140,30, BLACK, RED,"Moteur",NULL, Menu0 }
             }
         },
-	{3,3,{},
+	{3,3,{},{},
             {
             {10,10,140,30,BLACK,RED,  "Eau" ,NULL , Menu0 },
             {10,45,140,30, BLACK,RED,  "Malt",NULL , Menu0 },
 	    {10,80,140,30, BLACK, RED,  "Back",NULL, Menu0 }
             }
         },
-	{4,3,{},
+	{4,3,{0},{},
             {
             {10,10,140,30,BLACK,RED,  "Temp : " ,&temp , Menu0 },
             {10,45,140,30, BLACK,RED,  "Masse",NULL , Menu0 },
@@ -151,7 +151,9 @@ void drawButton(Area *button, bool has_focus) {
 	char text_out[20];
 	strcpy(text_out, button->c);
 	//Si le bouton posséde une valeur à afficher : afficher cette valeur
-	if (button->v !=NULL) {dtostrf((*button->v),4,1,float_text); strcat(text_out, float_text);}
+	if (button->v !=NULL) {
+		dtostrf((*button->v),4,1,float_text); 
+		strcat(text_out, float_text);}
 	Screen.text(text_out, button->x +text_padding, button->y +text_padding);
 };
 
@@ -169,17 +171,15 @@ void changeScreen(unsigned int screen_index) {
 	Current_screen=screen_index;
 	Position=0; 
 	doRefresh=TRUE;
-
 };
 
-//TODO : use this function with Current_screen
-/*
-void refreshScreen (int button_list[]) {
+void refreshAreas () {
   // parcourt la liste des boutons à rafraichir et rafraichi ceux là uniquement; 
-	for(int i; i<sizeof(button_list)+1;i++){
-		drawButton(interface[Current_screen].buttons[button_list[i]],0);
+	for(unsigned int i; i<sizeof(interface[Current_screen].refreshList);i++){
+		//TODO : find a way to deal with focus another way
+		drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 0);
 	}
-};*/
+};
 
 
 
@@ -203,6 +203,7 @@ void setup() {
 	attachInterrupt(1, doClick, RISING); // only when pushed not released
  
 // Initialisation du bouton poussoir
+// normalement utiliser pour les retours mais puisque le bouton de l'encodeur ne marche pas il faut utiliser celui ci pour la fonction doClick
 	pinMode(PB, INPUT);
  
  // CAPTEURS
@@ -210,7 +211,7 @@ void setup() {
 	Thermometer.begin();
 // En fonction de la resolution, il est necessaire de mettre un delai de 93,75ms pour 9 bits, 187,5ms pour 10 bits, 375 pour 11 bits et 750ms pour 12 bits
 	Thermometer.setResolution(ThermometerAdress,10);
-	Thermometer.setWaitForConversion(false);  // rend la requete asynchrone, il faut donc mettre un delay dans la loop pour attendre apres un request
+	Thermometer.setWaitForConversion(false);  // rend la requete asynchrone, il faut donc mettre un delay dans la loop pour attendre apres un request ou faire d'autres choses entre temps ??
  
 
 
@@ -231,8 +232,8 @@ void loop() {
   delay(190); // a diminuer en fonction de la duree de analog read qu'il faut mesurer
   temp=Thermometer.getTempC(ThermometerAdress);
   if (analogRead(A7) >500) { doClick(); delay(100);}
-  if (doRefresh) {drawScreen();}
-  
+  if (doRefresh) {drawScreen();} //TODO : choose a real timer
+  //if (sizeof(interface[Current_screen].refreshList)) {refreshAreas();}
 }
 
 void doEncoder(void) {
@@ -249,6 +250,7 @@ void doEncoder(void) {
 
 void changePosition(bool move_forward){
    unsigned int screen_pos_max=interface[Current_screen].p-1;
+// TODO : modifier cette fonction en permettant l'édition de valeurs
    if (move_forward){
 	if (Position==screen_pos_max){
 		Position=0;
@@ -266,6 +268,7 @@ void doClick(void) {
 // soit provoque une edition de valeurs
  // efface l'ecran
  	Screen.background(0,0,0);
+ // lance la fonction de callback pour l'écran et le bouton actuel
 	interface[Current_screen].buttons[Position].pf();
 }
 
