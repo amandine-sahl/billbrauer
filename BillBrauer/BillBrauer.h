@@ -13,6 +13,7 @@ typedef struct {
 	//String c;  
 	char c[12]; // texte à rajouter ou texte dans le cas d'une zone non cliquable
 	float (*v); // pointeur vers une valeur en int, si NULL il s'agit d'un texte simple
+	int e; // indique si la valeur est editable
         ptrf pf; // fonction à appeler sans un paramètre à fixer !!!! Il faut trouver comment fixer des paramètres
      // la fonction à appeler est soit gotoscreen avec le numéro soit changevalue avec la valeur  à modifier et +1 ou -1  
 }Area;
@@ -30,6 +31,17 @@ typedef struct {
   
 }Page;
 
+// TODO : define a structure for the state but what to do with volatile
+/*
+typedef struct {
+	unsigned char Screen;
+	unsigned char Position;
+	float Temp_actuel;
+	float Temp_goal;
+	unsigned int Time_left;
+	
+}State;
+*/
 /*typedef struct {
 	int actual_temp;
 	float 
@@ -39,12 +51,15 @@ typedef struct {
 
 
 void drawButton(Area *button, bool has_focus);
-void drawScreen();
-void refreshAreas ();
+void drawScreen(void);
+void refreshAreas(void);
 //void Menu0(void);
 void changePosition(bool move_forward);
-void doEncoder(void);
-void doClick(void);
+void receiveEncoder(void);
+void receiveClick(void);
 void printhello(void);
 void checkPB(void);
 void changeScreen(unsigned int screen_index);
+void getTemp(void);
+void doEnter(void);
+void getWeight(void);

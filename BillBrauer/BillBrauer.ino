@@ -7,6 +7,8 @@ BillBrauer est une cuve de brassage avec moteur, une balance integré avec stock
 //#include <SD.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <Time.h>
+#include <TimeAlarms.h>
 #include "BillBrauer.h"
 
 /*Une fois le code acheve, il faudra enlever ces définitions et les remplacer dans le code. Il est également possible d'utiliser les registres directement pour etre plus efficace.
@@ -45,6 +47,11 @@ BillBrauer est une cuve de brassage avec moteur, une balance integré avec stock
 #define CYAN 0xFFE0
 #define WHITE 0xFFFF
 
+//Definition des tempos de rafraichissement valeurs et ecran
+#define TEMPERATURE_RATE 1
+#define WEIGHT_RATE 1
+#define SCREEN_RATE 0.1
+
 // INITIALISATION LIBRAIRIES
 //Definition de l'ecran
 TFT Screen = TFT (10,9,-1);
@@ -52,23 +59,27 @@ TFT Screen = TFT (10,9,-1);
 //Thermometer
 OneWire oneWire(A3);
 DallasTemperature Thermometer(&oneWire);
-DeviceAddress ThermometerAdress={0x28,0x3E,0x40,0xCD,0x05,0x00,0x00,0x98};
+static DeviceAddress ThermometerAdress={0x28,0x3E,0x40,0xCD,0x05,0x00,0x00,0x98};
 
 // Variables interfaces
 volatile unsigned char Position=0;
-volatile unsigned int Current_screen; //try to use char instead but i can't, maybe initialization
+volatile unsigned int Current_screen=0; //try to use char instead but i can't, maybe initialization
 volatile bool doRefresh=TRUE;
+volatile bool doClick=FALSE;
+volatile bool doRefreshValues=FALSE;
 
 // Variables capteurs
-float temp; //Temperature actuelle
+float Temp_actual=0; //Temperature actuelle
 
-float temp_set; // Temperature de consigne pour le thermostat
-unsigned int weight_reading[10]; // Liste de 10 lectures de la valeur de 0 à 1023
-float weight=0; // Masse calculée à partir de la moyenne des lectures précédentes
-unsigned int tare_weights[2][2]; // Tares enregistrée TODO :à reporter dans un fichier de configuration à mettre sur la carte SD ??
+float Temp_goal; // Temperature de consigne pour le thermostat
+unsigned int Weight_readings[10]; // Liste de 10 lectures de la valeur de 0 à 1023
+float Weight_untared=0; // Masse calculée à partir de la moyenne des lectures précédentes
+unsigned int Scale_define[2][2];
+float Tare=0;
+ // Tares enregistrée TODO :à reporter dans un fichier de configuration à mettre sur la carte SD ??
 // Variables effecteurs
-unsigned char motor_speed=0; // Correspond à la vitesse du moteur souhaitée de 0 à 255
-bool heating_element=FALSE; // Correspond à l'état du moteur, il s'agit d'un booléen
+unsigned char Motor_speed=0; // Correspond à la vitesse du moteur souhaitée de 0 à 255
+bool Heating_state=FALSE; // Correspond à l'état de la resistance, il s'agit d'un booléen
 
 
 
@@ -102,29 +113,29 @@ static Page interface[4] =
 {
         {1,2,{},{},
             {
-            {10,10,140,50,BLACK,RED,"Manuel" ,NULL , Menu1  },
-            {10,65,140,50, BLACK,RED,"Automatique" ,NULL , Menu2  }
+            {10,10,140,50,BLACK,RED,"Manuel" ,NULL ,FALSE, Menu1  },
+            {10,65,140,50, BLACK,RED,"Automatique" ,NULL ,FALSE, Menu2  }
             }
         },
 	{2,3,{},{},
             {
-            {10,10,140,30,BLACK,RED,"Balance" ,NULL , Menu0 },
-            {10,45,140,30, BLACK,RED,"Thermostat",NULL , Menu3 },
-	    {10,80,140,30, BLACK, RED,"Moteur",NULL, Menu0 }
+            {10,10,140,30,BLACK,RED,"Balance" ,NULL ,FALSE, Menu0 },
+            {10,45,140,30, BLACK,RED,"Thermostat",NULL ,FALSE, Menu3 },
+	    {10,80,140,30, BLACK, RED,"Moteur",NULL,FALSE, Menu0 }
             }
         },
 	{3,3,{},{},
             {
-            {10,10,140,30,BLACK,RED,  "Eau" ,NULL , Menu0 },
-            {10,45,140,30, BLACK,RED,  "Malt",NULL , Menu0 },
-	    {10,80,140,30, BLACK, RED,  "Back",NULL, Menu0 }
+            {10,10,140,30,BLACK,RED,  "Eau" ,NULL ,FALSE, Menu0 },
+            {10,45,140,30, BLACK,RED,  "Malt",NULL ,FALSE, Menu0 },
+	    {10,80,140,30, BLACK, RED,  "Back",NULL,FALSE, Menu0 }
             }
         },
 	{4,3,{0},{},
             {
-            {10,10,140,30,BLACK,RED,  "Temp : " ,&temp , Menu0 },
-            {10,45,140,30, BLACK,RED,  "Masse",NULL , Menu0 },
-	    {10,80,140,30, BLACK, RED,  "Back",NULL, Menu0 }
+            {10,10,140,30,BLACK,RED,  "Temp : " ,&Temp_actual ,FALSE, Menu0 },
+            {10,45,140,30, BLACK,RED,  "Masse",NULL ,FALSE, Menu0 },
+	    {10,80,140,30, BLACK, RED,  "Back",NULL,FALSE, Menu0 }
             }
         }
 };
@@ -159,11 +170,11 @@ void drawButton(Area *button, bool has_focus) {
 
 void drawScreen() {
  // parcourt tous les boutons sans exception pour l'initialisation de l'écran
+	Screen.background(0,0,0);
 	for(unsigned int i ; i<interface[Current_screen].p; i++){
 		if (i==Position) {drawButton(&(interface[Current_screen].buttons[i]), 1);
 		} else { drawButton(&(interface[Current_screen].buttons[i]), 0);}
 	}
-	doRefresh=FALSE;
 };
 
 void changeScreen(unsigned int screen_index) {
@@ -173,70 +184,29 @@ void changeScreen(unsigned int screen_index) {
 	doRefresh=TRUE;
 };
 
-void refreshAreas () {
-  // parcourt la liste des boutons à rafraichir et rafraichi ceux là uniquement; 
-	for(unsigned int i; i<sizeof(interface[Current_screen].refreshList);i++){
+void refreshAreas(void){
+  // parcourt la liste des boutons à rafraichir et rafraichi ceux là uniquement;
+	for (unsigned int i; i<sizeof(interface[Current_screen].refreshList);i++){
 		//TODO : find a way to deal with focus another way
-		drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 0);
+		if (Position==interface[Current_screen].refreshList[i]) { 
+			drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 1); } 
+		else {	drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 0); }
 	}
 };
 
+void getTemp() {
+	Thermometer.requestTemperatures();
+  	Alarm.delay(500);
+	Temp_actual=Thermometer.getTempC(ThermometerAdress);
+	Alarm.delay(100);
+	doRefreshValues=TRUE;
+};
 
+void getWeight() {
 
-void setup() {
-  //INTERFACE UTILISATEUR
-  // Initialisation de l'ecran
-	Screen.begin();
- // Trois valeurs de rotation possible 0, 1, 2, 3 correspondant à 0°, 90°, 180° et 270°
-	Screen.setRotation(3);
- // Fond noir
-	Screen.background(0,0,0);
- 
- // Interruption de l'encodeur (les resistances pull up de l'arduino ne sont pas utilisés)
-	pinMode(2, INPUT);
- 	pinMode(4,INPUT);
- 	attachInterrupt(0, doEncoder, RISING); //to get only half of the transition, changed from CHANGE to RISING or FALLING
- // Interruption du bouton de l'encodeur
- // TODO : check the pcb because the pin3 doesn't work !!!
-// use the pushbutton for enter
-	pinMode(3,INPUT);
-	attachInterrupt(1, doClick, RISING); // only when pushed not released
- 
-// Initialisation du bouton poussoir
-// normalement utiliser pour les retours mais puisque le bouton de l'encodeur ne marche pas il faut utiliser celui ci pour la fonction doClick
-	pinMode(PB, INPUT);
- 
- // CAPTEURS
- // Initialisation du thermometre 
-	Thermometer.begin();
-// En fonction de la resolution, il est necessaire de mettre un delai de 93,75ms pour 9 bits, 187,5ms pour 10 bits, 375 pour 11 bits et 750ms pour 12 bits
-	Thermometer.setResolution(ThermometerAdress,10);
-	Thermometer.setWaitForConversion(false);  // rend la requete asynchrone, il faut donc mettre un delay dans la loop pour attendre apres un request ou faire d'autres choses entre temps ??
- 
+};
 
-
-// Initialisation de la balance (pas utile)
-//pinMode(A6,INPUT);
-
-// EFFECTEURS
-
-//Dessine l'écran de demarrage
-	Current_screen=0;
-  //drawScreen(Current_screen);
-}
-
-void loop() {
-  // Request Temperature
-  Thermometer.requestTemperatures();
-  //int analogWeight=analogRead(A6); // prend 1ms normalement, il faut en faire plusieurs et faire une moyenne
-  delay(190); // a diminuer en fonction de la duree de analog read qu'il faut mesurer
-  temp=Thermometer.getTempC(ThermometerAdress);
-  if (analogRead(A7) >500) { doClick(); delay(100);}
-  if (doRefresh) {drawScreen();} //TODO : choose a real timer
-  //if (sizeof(interface[Current_screen].refreshList)) {refreshAreas();}
-}
-
-void doEncoder(void) {
+void receiveEncoder(void) {
    if (digitalRead(ENC_A) == digitalRead(ENC_B)) {
     // si edition valeur , doit incrementer la valeur
     // si changement position focus, doit changer focus
@@ -263,12 +233,74 @@ void changePosition(bool move_forward){
    doRefresh=TRUE;
 }
 
-void doClick(void) {
+void receiveClick(void) {doClick=TRUE;}
+
+void doEnter(void) {
 // soit provoque un changement d'ecran
 // soit provoque une edition de valeurs
  // efface l'ecran
- 	Screen.background(0,0,0);
+ 	//Screen.background(0,0,0);
  // lance la fonction de callback pour l'écran et le bouton actuel
 	interface[Current_screen].buttons[Position].pf();
 }
+
+
+
+void setup() {
+  //INTERFACE UTILISATEUR
+  // Initialisation de l'ecran
+	Screen.begin();
+ // Trois valeurs de rotation possible 0, 1, 2, 3 correspondant à 0°, 90°, 180° et 270°
+	Screen.setRotation(3);
+ // Fond noir
+	Screen.background(0,0,0);
+ 
+ // Interruption de l'encodeur (les resistances pull up de l'arduino ne sont pas utilisés)
+	pinMode(2,INPUT);
+ 	pinMode(4,INPUT);
+ 	attachInterrupt(0, receiveEncoder, RISING); //to get only half of the transition, changed from CHANGE to RISING or FALLING
+ // Interruption du bouton de l'encodeur
+// use the pushbutton for enter
+	pinMode(3,INPUT);
+	attachInterrupt(1, receiveClick, RISING); // only when pushed not released
+ 
+// Initialisation du bouton poussoir
+// normalement utiliser pour les retours mais puisque le bouton de l'encodeur ne marche pas il faut utiliser celui ci pour la fonction doClick
+	pinMode(PB, INPUT);
+ 
+ // CAPTEURS
+ // Initialisation du thermometre 
+	Thermometer.begin();
+// En fonction de la resolution, il est necessaire de mettre un delai de 93,75ms pour 9 bits, 187,5ms pour 10 bits, 375 pour 11 bits et 750ms pour 12 bits
+	Thermometer.setResolution(ThermometerAdress,10);
+	Thermometer.setWaitForConversion(false);  // rend la requete asynchrone, il faut donc mettre un delay dans la loop pour attendre apres un request ou faire d'autres choses entre temps ??
+
+
+  // EVENEMENTS REPETITIFS
+  	Alarm.timerRepeat(TEMPERATURE_RATE,getTemp);
+// Initialisation de la balance (pas utile)
+//pinMode(A6,INPUT);
+
+// EFFECTEURS
+
+//Dessine l'écran de demarrage
+	Current_screen=0;
+	//drawScreen();
+  //drawScreen(Current_screen);
+}
+
+void loop() {
+  //int analogWeight=analogRead(A6); // prend 1ms normalement, il faut en faire plusieurs et faire une moyenne
+
+  // Correspond au bouton de retour à configurer
+  //if (analogRead(A7) >500) { doClick(); delay(100);}
+  if (doClick) {doEnter(); doClick=FALSE;}
+  if (doRefresh) {drawScreen(); doRefresh=FALSE;} 
+  if (doRefreshValues) {refreshAreas(); doRefreshValues=FALSE;}
+  Alarm.delay(100);
+//TODO : choose a real timer
+
+  //if (sizeof(interface[Current_screen].refreshList)) {refreshAreas();}
+}
+
 
