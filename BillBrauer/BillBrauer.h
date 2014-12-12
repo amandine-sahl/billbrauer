@@ -25,6 +25,7 @@ typedef struct {
 typedef struct {
         unsigned char x; // page number
         unsigned char p; // number of position needed because we need to fix the size of the array, TODO : we need to get a variable array size
+	unsigned char refreshListLength;
 	unsigned char refreshList[5]; // position that contain a value that need to be refreshed
         Area displayed[5]; // correspond aux affichages simples // pas plus de cinq ici par page
         Area buttons[5]; // correspond aux zones selectionnables, leur nombre conditionne la taille du tableau //pas plus de cing par page ici

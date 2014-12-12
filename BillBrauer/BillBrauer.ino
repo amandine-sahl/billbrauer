@@ -62,16 +62,27 @@ DallasTemperature Thermometer(&oneWire);
 static DeviceAddress ThermometerAdress={0x28,0x3E,0x40,0xCD,0x05,0x00,0x00,0x98};
 
 // Variables interfaces
-volatile unsigned char Position=0;
+volatile unsigned char Previous_position=0;
+volatile unsigned char Current_position=0;
+volatile unsigned int Previous_screen=0;
 volatile unsigned int Current_screen=0; //try to use char instead but i can't, maybe initialization
+//
+// Trigger permettant de declencher un rafraichissement complet de l'écran
 volatile bool doRefresh=TRUE;
-volatile bool doClick=FALSE;
+// Trigger permettant de declencher le rafraichissement de quelques champs
+volatile bool doRefreshFocus=FALSE;
+//Trigger pour permettre le rafraichissement de valeurs lors de la boucle principale de l'interface
 volatile bool doRefreshValues=FALSE;
+volatile bool doClick=FALSE;
+//Contexte de navigation ou d'edition: trigger permettant d'orienter vers une incrementation de valeur
+volatile bool doEdit=FALSE;
+
+
 
 // Variables capteurs
 float Temp_actual=0; //Temperature actuelle
 
-float Temp_goal; // Temperature de consigne pour le thermostat
+float Temp_goal=0; // Temperature de consigne pour le thermostat
 unsigned int Weight_readings[10]; // Liste de 10 lectures de la valeur de 0 à 1023
 float Weight_untared=0; // Masse calculée à partir de la moyenne des lectures précédentes
 unsigned int Scale_define[2][2];
@@ -102,40 +113,41 @@ bool Heating_state=FALSE; // Correspond à l'état de la resistance, il s'agit d
 // TODO:le nombre de boutons donnera le nombre de positions par ecran
 
 // Définitions des fonctions de "callback"
-void Menu0(void) {changeScreen(0);};
-void Menu1(void) {changeScreen(1);};
-void Menu2(void) {changeScreen(2);};
-void Menu3(void) {changeScreen(3);};
+void goPage0(void) {changeScreen(0);};
+void goPage1(void) {changeScreen(1);};
+void goPage2(void) {changeScreen(2);};
+void goPage3(void) {changeScreen(3);};
+void goEdit(void) {doEdit=TRUE;};
 
 // Définitions des écrans et des zones d'affichage correspondantes
 // x[0,159] et y[0,127]
 static Page interface[4] = 
 {
-        {1,2,{},{},
+        {1,2,0,{},{},
             {
-            {10,10,140,50,BLACK,RED,"Manuel" ,NULL ,FALSE, Menu1  },
-            {10,65,140,50, BLACK,RED,"Automatique" ,NULL ,FALSE, Menu2  }
+            {10,10,140,50,BLACK,RED,"Manuel" ,NULL ,FALSE, goPage1  },
+            {10,65,140,50, BLACK,RED,"Automatique" ,NULL ,FALSE, goPage2  }
             }
         },
-	{2,3,{},{},
+	{2,3,0,{},{},
             {
-            {10,10,140,30,BLACK,RED,"Balance" ,NULL ,FALSE, Menu0 },
-            {10,45,140,30, BLACK,RED,"Thermostat",NULL ,FALSE, Menu3 },
-	    {10,80,140,30, BLACK, RED,"Moteur",NULL,FALSE, Menu0 }
+            {10,10,140,30,BLACK,RED,"Balance" ,NULL ,FALSE, goPage0 },
+            {10,45,140,30, BLACK,RED,"Thermostat",NULL ,FALSE, goPage3 },
+	    {10,80,140,30, BLACK, RED,"Moteur",NULL,FALSE, goPage0 }
             }
         },
-	{3,3,{},{},
+	{3,3,0,{},{},
             {
-            {10,10,140,30,BLACK,RED,  "Eau" ,NULL ,FALSE, Menu0 },
-            {10,45,140,30, BLACK,RED,  "Malt",NULL ,FALSE, Menu0 },
-	    {10,80,140,30, BLACK, RED,  "Back",NULL,FALSE, Menu0 }
+            {10,10,140,30,BLACK,RED,  "Eau" ,NULL ,FALSE, goPage0 },
+            {10,45,140,30, BLACK,RED,  "Malt",NULL ,FALSE, goPage0 },
+	    {10,80,140,30, BLACK, RED,  "Back",NULL,FALSE, goPage0 }
             }
         },
-	{4,3,{0},{},
+	{4,3,1,{0},{},
             {
-            {10,10,140,30,BLACK,RED,  "Temp : " ,&Temp_actual ,FALSE, Menu0 },
-            {10,45,140,30, BLACK,RED,  "Masse",NULL ,FALSE, Menu0 },
-	    {10,80,140,30, BLACK, RED,  "Back",NULL,FALSE, Menu0 }
+            {10,10,140,30,BLACK,RED,  "Temp : " ,&Temp_actual ,FALSE, goPage0 },
+            {10,45,140,30, BLACK,RED,  "Cible: ",&Temp_goal ,FALSE, goPage0 },
+	    {10,80,140,30, BLACK, RED,  "Back",NULL,FALSE, goPage0 }
             }
         }
 };
@@ -168,30 +180,39 @@ void drawButton(Area *button, bool has_focus) {
 	Screen.text(text_out, button->x +text_padding, button->y +text_padding);
 };
 
-void drawScreen() {
+void refreshScreen() {
  // parcourt tous les boutons sans exception pour l'initialisation de l'écran
 	Screen.background(0,0,0);
 	for(unsigned int i ; i<interface[Current_screen].p; i++){
-		if (i==Position) {drawButton(&(interface[Current_screen].buttons[i]), 1);
+		if (i==Current_position) {drawButton(&(interface[Current_screen].buttons[i]), 1);
 		} else { drawButton(&(interface[Current_screen].buttons[i]), 0);}
 	}
 };
 
+void refreshFocus() {
+	drawButton(&(interface[Current_screen].buttons[Current_position]), 1);
+	drawButton(&(interface[Current_screen].buttons[Previous_position]), 0);
+};
+
 void changeScreen(unsigned int screen_index) {
 	//Declenche le trigger pour un rafraichissement lors de la boucle
+	Previous_screen=Current_screen;
 	Current_screen=screen_index;
-	Position=0; 
+	Current_position=0; 
 	doRefresh=TRUE;
 };
 
-void refreshAreas(void){
+void refreshValues(void){
   // parcourt la liste des boutons à rafraichir et rafraichi ceux là uniquement;
-	for (unsigned int i; i<sizeof(interface[Current_screen].refreshList);i++){
-		//TODO : find a way to deal with focus another way
-		if (Position==interface[Current_screen].refreshList[i]) { 
-			drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 1); } 
-		else {	drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 0); }
-	}
+	unsigned char refreshListLength = interface[Current_screen].refreshListLength;
+	if (refreshListLength) {
+		for (unsigned int i; i<refreshListLength;i++){
+			//TODO : find a way to deal with focus another way
+			if (Current_position==interface[Current_screen].refreshList[i]) { 
+				drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 1); } 
+			else {	drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 0); }
+		}
+	}	
 };
 
 void getTemp() {
@@ -207,33 +228,36 @@ void getWeight() {
 };
 
 void receiveEncoder(void) {
+   Previous_position=Current_position;
    if (digitalRead(ENC_A) == digitalRead(ENC_B)) {
     // si edition valeur , doit incrementer la valeur
     // si changement position focus, doit changer focus
     // incremente dans les autres cas
-     changePosition(1);
+    // changePosition(1);
+	if (Current_position==interface[Current_screen].p-1){Current_position=0;} 
+	else{ Current_position++;};
   } else {
     // decremente dans les autres cas
-     changePosition(0);
+	if (Current_position==0){ Current_position=interface[Current_screen].p-1;} 
+	else{ Current_position--;};
   }
+  doRefreshFocus=TRUE;
 }
 
-void changePosition(bool move_forward){
+/*void changePosition(bool move_forward){
    unsigned int screen_pos_max=interface[Current_screen].p-1;
 // TODO : modifier cette fonction en permettant l'édition de valeurs
    if (move_forward){
-	if (Position==screen_pos_max){
-		Position=0;
-	} else{ Position++;};
+	
    } else {
-	if (Position==0){
-		Position=screen_pos_max;
-	} else{ Position--;};
+	
    }
    doRefresh=TRUE;
-}
+}*/
 
 void receiveClick(void) {doClick=TRUE;}
+
+bool receiveBackClick(void) {if (analogRead(A7) >500){return TRUE;}else{return FALSE;}}
 
 void doEnter(void) {
 // soit provoque un changement d'ecran
@@ -241,7 +265,7 @@ void doEnter(void) {
  // efface l'ecran
  	//Screen.background(0,0,0);
  // lance la fonction de callback pour l'écran et le bouton actuel
-	interface[Current_screen].buttons[Position].pf();
+	interface[Current_screen].buttons[Current_position].pf();
 }
 
 
@@ -293,10 +317,11 @@ void loop() {
   //int analogWeight=analogRead(A6); // prend 1ms normalement, il faut en faire plusieurs et faire une moyenne
 
   // Correspond au bouton de retour à configurer
-  //if (analogRead(A7) >500) { doClick(); delay(100);}
+  if (receiveBackClick()) { changeScreen(Previous_screen); Alarm.delay(50);}
   if (doClick) {doEnter(); doClick=FALSE;}
-  if (doRefresh) {drawScreen(); doRefresh=FALSE;} 
-  if (doRefreshValues) {refreshAreas(); doRefreshValues=FALSE;}
+  if (doRefresh) {refreshScreen(); doRefresh=FALSE;} 
+  if (doRefreshFocus) {refreshFocus(); doRefreshFocus=FALSE;}
+  if (doRefreshValues) {refreshValues(); doRefreshValues=FALSE;}
   Alarm.delay(100);
 //TODO : choose a real timer
 
