@@ -51,6 +51,7 @@ BillBrauer est une cuve de brassage avec moteur, une balance integré avec stock
 #define TEMPERATURE_RATE 1
 #define WEIGHT_RATE 1
 #define SCREEN_RATE 0.1
+#define WEIGHT_READINGS 10
 
 // INITIALISATION LIBRAIRIES
 //Definition de l'ecran
@@ -83,10 +84,12 @@ volatile bool doEdit=FALSE;
 float Temp_actual=0; //Temperature actuelle
 
 float Temp_goal=0; // Temperature de consigne pour le thermostat
-unsigned int Weight_readings[10]; // Liste de 10 lectures de la valeur de 0 à 1023
-float Weight_untared=0; // Masse calculée à partir de la moyenne des lectures précédentes
-unsigned int Scale_define[2][2];
-float Tare=0;
+float Time_left=90;
+bool Timer_set=FALSE;
+float Weight_actual=0;
+float Weight_tare=0;
+//unsigned int Weight_readings[10]; // Liste de 10 lectures de la valeur de 0 à 1023
+float Scale_define[2][2] = {{0,85},{2,96}};
  // Tares enregistrée TODO :à reporter dans un fichier de configuration à mettre sur la carte SD ??
 // Variables effecteurs
 unsigned char Motor_speed=0; // Correspond à la vitesse du moteur souhaitée de 0 à 255
@@ -117,11 +120,14 @@ void goPage0(void) {changeScreen(0);};
 void goPage1(void) {changeScreen(1);};
 void goPage2(void) {changeScreen(2);};
 void goPage3(void) {changeScreen(3);};
+void goPage4(void) {changeScreen(4);};
 void goEdit(void) {doEdit=TRUE;};
+void goTare(void) {};
+void goSetScale(void) {changeScreen(5);};
 
 // Définitions des écrans et des zones d'affichage correspondantes
 // x[0,159] et y[0,127]
-static Page interface[4] = 
+static Page interface[6] = 
 {
         {1,2,0,{},{},
             {
@@ -131,25 +137,38 @@ static Page interface[4] =
         },
 	{2,3,0,{},{},
             {
-            {10,10,140,30,BLACK,RED,"Balance" ,NULL ,FALSE, goPage0 },
+            {10,10,140,30,BLACK,RED,"Balance" ,NULL ,FALSE, goPage4 },
             {10,45,140,30, BLACK,RED,"Thermostat",NULL ,FALSE, goPage3 },
 	    {10,80,140,30, BLACK, RED,"Moteur",NULL,FALSE, goPage0 }
             }
         },
-	{3,3,0,{},{},
+	{3,2,0,{},{},
             {
             {10,10,140,30,BLACK,RED,  "Eau" ,NULL ,FALSE, goPage0 },
-            {10,45,140,30, BLACK,RED,  "Malt",NULL ,FALSE, goPage0 },
-	    {10,80,140,30, BLACK, RED,  "Back",NULL,FALSE, goPage0 }
+            {10,45,140,30, BLACK,RED,  "Malt",NULL ,FALSE, goPage0 }
             }
         },
 	{4,3,1,{0},{},
             {
-            {10,10,140,30,BLACK,RED,  "Temp : " ,&Temp_actual ,FALSE, goPage0 },
-            {10,45,140,30, BLACK,RED,  "Cible: ",&Temp_goal ,FALSE, goPage0 },
-	    {10,80,140,30, BLACK, RED,  "Back",NULL,FALSE, goPage0 }
+        	{10,10,140,30,BLACK,RED,  "Temp : " ,&Temp_actual ,FALSE, goPage0 },
+         	{10,45,140,30, BLACK,RED,  "Cible: ",&Temp_goal ,TRUE, goEdit },
+	    	{10,80,140,30, BLACK, RED,"Duree:",&Time_left,FALSE, goPage0 }
             }
-        }
+	},
+	{5,3,1,{0},{},
+	   {
+		{10,10,140,30,BLACK,RED,  "Poids: " ,&Weight_actual ,FALSE, goPage0 },
+		{10,45,140,30,BLACK,RED, "Tarer",NULL,FALSE,goTare },
+		{10,80,140,30, BLACK, RED,"Regler",NULL,FALSE, goSetScale }
+	   }
+	},
+	{6,2,1,{0},{},
+	   {
+		{10,10,140,20,BLACK,RED,  "Poids 1: " ,&Weight_actual ,TRUE, goPage0 },
+		{10,45,140,20,BLACK,RED, "Tarer",NULL,FALSE, goTare },
+		{10,80,140,20, BLACK, RED,"Next",NULL,FALSE, goSetScale }
+	   }
+	},
 };
 
 //Page Current_screen;
@@ -181,15 +200,19 @@ void drawButton(Area *button, bool has_focus) {
 };
 
 void refreshScreen() {
+ // Efface l'ecran précédent et affiche l'ecran actuel
  // parcourt tous les boutons sans exception pour l'initialisation de l'écran
 	Screen.background(0,0,0);
 	for(unsigned int i ; i<interface[Current_screen].p; i++){
+		// Draw with focus
 		if (i==Current_position) {drawButton(&(interface[Current_screen].buttons[i]), 1);
+		// Draw without focus
 		} else { drawButton(&(interface[Current_screen].buttons[i]), 0);}
 	}
 };
 
 void refreshFocus() {
+ // Met le focus sur la position actuelle et l'enleve sur la position précédente
 	drawButton(&(interface[Current_screen].buttons[Current_position]), 1);
 	drawButton(&(interface[Current_screen].buttons[Previous_position]), 0);
 };
@@ -203,7 +226,7 @@ void changeScreen(unsigned int screen_index) {
 };
 
 void refreshValues(void){
-  // parcourt la liste des boutons à rafraichir et rafraichi ceux là uniquement;
+  // Reaffiche les boutons à rafraichir de la page
 	unsigned char refreshListLength = interface[Current_screen].refreshListLength;
 	if (refreshListLength) {
 		for (unsigned int i; i<refreshListLength;i++){
@@ -224,8 +247,19 @@ void getTemp() {
 };
 
 void getWeight() {
-
+	unsigned int analogValTotal;
+	for (unsigned int i; i<WEIGHT_READINGS; i++) {
+		analogValTotal+=analogRead(A6);
+		Alarm.delay(40);
+	}
+	float analogAverage=analogValTotal/WEIGHT_READINGS;
+	Weight_actual=mapWeight(analogAverage,Scale_define[0][1],Scale_define[1][1],Scale_define[0][0],Scale_define[1][0]);	
 };
+
+float mapWeight(float x, float in_min, float in_max, float out_min, float out_max){
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+};
+
 
 void receiveEncoder(void) {
    Previous_position=Current_position;
@@ -302,6 +336,8 @@ void setup() {
 
   // EVENEMENTS REPETITIFS
   	Alarm.timerRepeat(TEMPERATURE_RATE,getTemp);
+	Alarm.delay(500);
+	Alarm.timerRepeat(WEIGHT_RATE,getWeight);
 // Initialisation de la balance (pas utile)
 //pinMode(A6,INPUT);
 
@@ -322,7 +358,7 @@ void loop() {
   if (doRefresh) {refreshScreen(); doRefresh=FALSE;} 
   if (doRefreshFocus) {refreshFocus(); doRefreshFocus=FALSE;}
   if (doRefreshValues) {refreshValues(); doRefreshValues=FALSE;}
-  Alarm.delay(100);
+  Alarm.delay(10);
 //TODO : choose a real timer
 
   //if (sizeof(interface[Current_screen].refreshList)) {refreshAreas();}
