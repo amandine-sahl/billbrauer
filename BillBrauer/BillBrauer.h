@@ -5,11 +5,13 @@ typedef void (*ptrf)();
 // Définition de la structure Area qui correspond soit à une bouton soit à un affichage simple
 typedef struct {
         unsigned char  x; // position X
-        unsigned char y; // postion Y
+        unsigned char y; // position Y
         unsigned char w; // largeur
         unsigned char h; // hauteur
         unsigned int f; // couleur du texte // passage en byte possible ???
         unsigned int b; // couleur d'arrière plan
+	unsigned char pr;//previous position
+	unsigned char nx;//next position
 	//String c;  
 	char c[12]; // texte à rajouter ou texte dans le cas d'une zone non cliquable
 	float (*v); // pointeur vers une valeur en int, si NULL il s'agit d'un texte simple
@@ -25,6 +27,7 @@ typedef struct {
 typedef struct {
         unsigned char x; // page number
         unsigned char p; // number of position needed because we need to fix the size of the array, TODO : we need to get a variable array size
+	//unsigned char f; //first position for the focus	
 	unsigned char refreshListLength;
 	unsigned char refreshList[5]; // position that contain a value that need to be refreshed
         Area displayed[5]; // correspond aux affichages simples // pas plus de cinq ici par page
