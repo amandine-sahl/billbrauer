@@ -131,42 +131,42 @@ static Page interface[6] =
 {
         {1,2,0,{},{},
             {
-            {10,10,140,50,BLACK,RED,1,1,"Manuel" ,NULL ,FALSE, goPage1  },
-            {10,65,140,50, BLACK,RED,0,0,"Automatique" ,NULL ,FALSE, goPage2  }
+            {10,10,140,50,BLACK,RED,"Manuel" ,NULL ,FALSE, goPage1  },
+            {10,65,140,50, BLACK,RED,"Automatique" ,NULL ,FALSE, goPage2  }
             }
         },
 	{2,3,0,{},{},
             {
-            {10,10,140,30,BLACK,RED,2,1,"Balance" ,NULL ,FALSE, goPage4 },
-            {10,45,140,30, BLACK,RED,0,2,"Thermostat",NULL ,FALSE, goPage3 },
-	    {10,80,140,30, BLACK, RED,1,0,"Moteur",NULL,FALSE, goPage0 }
+            {10,10,140,30,BLACK,RED,"Balance" ,NULL ,FALSE, goPage4 },
+            {10,45,140,30, BLACK,RED,"Thermostat",NULL ,FALSE, goPage3 },
+	    {10,80,140,30, BLACK, RED,"Moteur",NULL,FALSE, goPage0 }
             }
         },
 	{3,2,0,{},{},
             {
-            {10,10,140,30,BLACK,RED,1,1,"Eau" ,NULL ,FALSE, goPage0 },
-            {10,45,140,30, BLACK,RED,0,0,"Malt",NULL ,FALSE, goPage0 }
+            {10,10,140,30,BLACK,RED,  "Eau" ,NULL ,FALSE, goPage0 },
+            {10,45,140,30, BLACK,RED,  "Malt",NULL ,FALSE, goPage0 }
             }
         },
 	{4,3,1,{0},{},
             {
-        	{10,10,140,30,BLACK,RED,2,1,  "Temp : " ,&Temp_actual ,FALSE, goPage0 },
-         	{10,45,140,30, BLACK,RED,0,2,  "Cible: ",&Temp_goal ,TRUE, goEdit },
-	    	{10,80,140,30, BLACK, RED,1,0,"Duree:",&Time_left,FALSE, goPage0 }
+        	{10,10,140,30,BLACK,RED,  "Temp : " ,&Temp_actual ,FALSE, goPage0 },
+         	{10,45,140,30, BLACK,RED,  "Cible: ",&Temp_goal ,TRUE, goEdit },
+	    	{10,80,140,30, BLACK, RED,"Duree:",&Time_left,FALSE, goPage0 }
             }
 	},
 	{5,3,1,{0},{},
 	   {
-		{10,10,140,30,BLACK,RED,2,1,  "Poids: " ,&Weight_actual ,FALSE, goPage0 },
-		{10,45,140,30,BLACK,RED,0,2, "Tarer",NULL,FALSE,goTare },
-		{10,80,140,30, BLACK, RED,1,0,"Regler",NULL,FALSE, goSetScale }
+		{10,10,140,30,BLACK,RED,  "Poids: " ,&Weight_actual ,FALSE, goPage0 },
+		{10,45,140,30,BLACK,RED, "Tarer",NULL,FALSE,goTare },
+		{10,80,140,30, BLACK, RED,"Regler",NULL,FALSE, goSetScale }
 	   }
 	},
-	{6,3,1,{0},{},
+	{6,2,1,{0},{},
 	   {
-		{10,10,140,20,BLACK,RED,2,1,  "Poids 1: " ,&Weight_actual ,FALSE, goPage0 },
-		{10,45,140,20,BLACK,RED,0,2, "Tarer",NULL,FALSE, goTare },
-		{10,80,140,20, BLACK, RED,1,0, "Next",NULL,FALSE, goSetScale }
+		{10,10,140,20,BLACK,RED,  "Poids 1: " ,&Weight_actual ,TRUE, goPage0 },
+		{10,45,140,20,BLACK,RED, "Tarer",NULL,FALSE, goTare },
+		{10,80,140,20, BLACK, RED,"Next",NULL,FALSE, goSetScale }
 	   }
 	},
 };
@@ -358,7 +358,7 @@ void loop() {
   if (doRefresh) {refreshScreen(); doRefresh=FALSE;} 
   if (doRefreshFocus) {refreshFocus(); doRefreshFocus=FALSE;}
   if (doRefreshValues) {refreshValues(); doRefreshValues=FALSE;}
-  Alarm.delay(100);
+  Alarm.delay(10);
 //TODO : choose a real timer
 
   //if (sizeof(interface[Current_screen].refreshList)) {refreshAreas();}
