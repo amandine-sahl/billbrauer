@@ -53,6 +53,13 @@ BillBrauer est une cuve de brassage avec moteur, une balance integré avec stock
 #define SCREEN_RATE 0.1
 #define WEIGHT_READINGS 10
 
+//Definition des actions pour l'interface utilisateur
+#define NONE 0
+#define ENCODER_PLUS 1
+#define ENCODER_MINUS 2
+#define CLICK 3
+#define PUSH_BACK 4
+
 // INITIALISATION LIBRAIRIES
 //Definition de l'ecran
 TFT Screen = TFT (10,9,-1);
@@ -62,25 +69,13 @@ OneWire oneWire(A3);
 DallasTemperature Thermometer(&oneWire);
 static DeviceAddress ThermometerAdress={0x28,0x3E,0x40,0xCD,0x05,0x00,0x00,0x98};
 
-// Variables interfaces
-volatile unsigned char Previous_position=0;
-volatile unsigned char Current_position=0;
-volatile unsigned int Previous_screen=0;
-volatile unsigned int Current_screen=0; //try to use char instead but i can't, maybe initialization
-//
-// Trigger permettant de declencher un rafraichissement complet de l'écran
-volatile bool doRefresh=TRUE;
-// Trigger permettant de declencher le rafraichissement de quelques champs
-volatile bool doRefreshFocus=FALSE;
-//Trigger pour permettre le rafraichissement de valeurs lors de la boucle principale de l'interface
-volatile bool doRefreshValues=FALSE;
-volatile bool doClick=FALSE;
-//Contexte de navigation ou d'edition: trigger permettant d'orienter vers une incrementation de valeur
-volatile bool doEdit=FALSE;
+// VARIABLES ETATS INTERFACE
+volatile unsigned int Current_Page=0;
+volatile unsigned int Current_Pos=0;
+volatile bool Edit=FALSE;
+volatile unsigned int Action=NONE;
 
-
-
-// Variables capteurs
+// VARIABLES CAPTEURS
 float Temp_actual=0; //Temperature actuelle
 
 float Temp_goal=0; // Temperature de consigne pour le thermostat
@@ -91,7 +86,8 @@ float Weight_tare=0;
 //unsigned int Weight_readings[10]; // Liste de 10 lectures de la valeur de 0 à 1023
 float Scale_define[2][2] = {{0,85},{2,96}};
  // Tares enregistrée TODO :à reporter dans un fichier de configuration à mettre sur la carte SD ??
-// Variables effecteurs
+
+// VARIABLES EFFECTEURS
 unsigned char Motor_speed=0; // Correspond à la vitesse du moteur souhaitée de 0 à 255
 bool Heating_state=FALSE; // Correspond à l'état de la resistance, il s'agit d'un booléen
 
@@ -115,6 +111,7 @@ bool Heating_state=FALSE; // Correspond à l'état de la resistance, il s'agit d
 // Zone valeurs affichées : position x, position y, largeur, hauteur, pointeur variable globale
 // TODO:le nombre de boutons donnera le nombre de positions par ecran
 
+/*
 // Définitions des fonctions de "callback"
 void goPage0(void) {changeScreen(0);};
 void goPage1(void) {changeScreen(1);};
@@ -124,9 +121,58 @@ void goPage4(void) {changeScreen(4);};
 void goEdit(void) {doEdit=TRUE;};
 void goTare(void) {};
 void goSetScale(void) {changeScreen(5);};
-
+*/
 // Définitions des écrans et des zones d'affichage correspondantes
 // x[0,159] et y[0,127]
+
+
+//FONCTIONS DE CALLBACK
+//Pour les fonctions
+void ForwPos() {
+
+}
+
+void BackPos() {
+
+}
+
+void ClickPos() {
+
+}
+
+static Page interface[3] = {
+	{0,0, //Page de demarrage
+		0,{}, // Affichages simples
+		0,{}, // Valeurs à rafraichir
+		2,{ // Boutons
+		{{10,10,140,50,BLACK,RED,2,"Manuel"},FALSE,NULL,NULL,1,1,1,ForwPos,BackPos,ClickPos}, 
+		//{x,y,h,w,color,bg_color,text_size,text,dec,val_ptr,txt_ptr,prev,next,link,encP,encM,Click}
+		{{10,65,140,50,BLACK,RED,2,"Automatique"},FALSE,NULL,NULL,0,0,1,ForwPos,BackPos,ClickPos}
+		} 
+	},
+	{0,0, // Mode Manuel
+		0,{}, // Affichages simples
+		0,{}, // Valeurs à rafraichir
+		3,{ // Boutons
+		{{10,10,140,30,BLACK,RED,2,"Balance"},FALSE,NULL,NULL,2,1,2,ForwPos,BackPos,ClickPos},
+		{{10,45,140,30,BLACK,RED,2,"Thermostat"},FALSE,NULL,NULL,0,2,0,ForwPos,BackPos,ClickPos},
+		{{10,80,140,30,BLACK,RED,2,"Moteur"},FALSE,NULL,NULL,1,0,0,ForwPos,BackPos,ClickPos}
+		} 
+	},
+	{1,0, // Balance
+		1,{ // Affichages simples
+		{100,20,50,30,BLACK,RED, 2,"kg"}}// unité mesure instantanée
+		}, 
+		1,{ // Valeurs à rafraichir
+		{{10,10,90,30,BLACK,RED,3,""},TRUE,&Weigth_actual}
+		}, 
+		2,{ // Boutons
+		{{10,45,140,30,BLACK,RED,2,"Tarer"},FALSE,NULL,NULL,1,1,0,ForwPos,BackPos,ClickPos},
+		{{10,80,140,30,BLACK,RED,2,"Regler"},FALSE,NULL,NULL,0,0,0,ForwPos,BackPos,ClickPos},
+		} 
+	}
+};
+/*
 static Page interface[6] = 
 {
         {1,2,0,{},{},
@@ -164,13 +210,13 @@ static Page interface[6] =
 	},
 	{6,2,1,{0},{},
 	   {
-		{10,10,140,20,BLACK,RED,  "Poids 1: " ,&Weight_actual ,TRUE, goPage0 },
+		{10,10,140,20,BLACK,RED,  "Poids 1: " ,&Weight_actual ,FALSE, goPage0 },
 		{10,45,140,20,BLACK,RED, "Tarer",NULL,FALSE, goTare },
 		{10,80,140,20, BLACK, RED,"Next",NULL,FALSE, goSetScale }
 	   }
 	},
 };
-
+*/
 //Page Current_screen;
 
 // CONFIGURATION AFFICHAGE
@@ -227,15 +273,16 @@ void changeScreen(unsigned int screen_index) {
 
 void refreshValues(void){
   // Reaffiche les boutons à rafraichir de la page
-	unsigned char refreshListLength = interface[Current_screen].refreshListLength;
-	if (refreshListLength) {
-		for (unsigned int i; i<refreshListLength;i++){
+	//unsigned char refreshListLength = interface[Current_screen].refreshListLength;
+	//if (refreshListLength!=0) {
+		for (unsigned int i; i<interface[Current_screen].refreshListLength;i++){
 			//TODO : find a way to deal with focus another way
-			if (Current_position==interface[Current_screen].refreshList[i]) { 
-				drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 1); } 
-			else {	drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 0); }
+			//if (Current_position==interface[Current_screen].refreshList[i]) { 
+				drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 1); 
+//} 
+//			else {	drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 0); }
 		}
-	}	
+	//}	
 };
 
 void getTemp() {
@@ -253,7 +300,8 @@ void getWeight() {
 		Alarm.delay(40);
 	}
 	float analogAverage=analogValTotal/WEIGHT_READINGS;
-	Weight_actual=mapWeight(analogAverage,Scale_define[0][1],Scale_define[1][1],Scale_define[0][0],Scale_define[1][0]);	
+	Weight_actual=mapWeight(analogAverage,Scale_define[0][1],Scale_define[1][1],Scale_define[0][0],Scale_define[1][0]);
+	doRefreshValues=TRUE;	
 };
 
 float mapWeight(float x, float in_min, float in_max, float out_min, float out_max){
@@ -262,20 +310,22 @@ float mapWeight(float x, float in_min, float in_max, float out_min, float out_ma
 
 
 void receiveEncoder(void) {
-   Previous_position=Current_position;
+   //Previous_position=Current_position;
    if (digitalRead(ENC_A) == digitalRead(ENC_B)) {
     // si edition valeur , doit incrementer la valeur
     // si changement position focus, doit changer focus
     // incremente dans les autres cas
     // changePosition(1);
-	if (Current_position==interface[Current_screen].p-1){Current_position=0;} 
-	else{ Current_position++;};
+	//if (Current_position==interface[Current_screen].p-1){Current_position=0;} 
+	//else{ Current_position++;};
+	Action=ENCODER_PLUS;
   } else {
     // decremente dans les autres cas
-	if (Current_position==0){ Current_position=interface[Current_screen].p-1;} 
-	else{ Current_position--;};
+	//if (Current_position==0){ Current_position=interface[Current_screen].p-1;} 
+	//else{ Current_position--;};
+	Action=ENCODER_MINUS;
   }
-  doRefreshFocus=TRUE;
+  //doRefreshFocus=TRUE;
 }
 
 /*void changePosition(bool move_forward){
@@ -289,10 +339,11 @@ void receiveEncoder(void) {
    doRefresh=TRUE;
 }*/
 
-void receiveClick(void) {doClick=TRUE;}
+void receiveClick(void) {Action=CLICK;}
 
 bool receiveBackClick(void) {if (analogRead(A7) >500){return TRUE;}else{return FALSE;}}
 
+/*
 void doEnter(void) {
 // soit provoque un changement d'ecran
 // soit provoque une edition de valeurs
@@ -301,6 +352,7 @@ void doEnter(void) {
  // lance la fonction de callback pour l'écran et le bouton actuel
 	interface[Current_screen].buttons[Current_position].pf();
 }
+*/
 
 
 
@@ -351,7 +403,25 @@ void setup() {
 
 void loop() {
   //int analogWeight=analogRead(A6); // prend 1ms normalement, il faut en faire plusieurs et faire une moyenne
-
+	if (receiveBackClick()) { Action=PUSH_BACK;} // Pour la lisibilite seulement : test de l'état du bouton Back
+	switch (Action) { // Vérifie si une action utilisateur a été demandée et lance le callback correspondant à l'état actuel le cas échéant
+		case NONE: // Pas d'action utilisateur à lancer
+			break;
+		case ENCODER_PLUS: // Encodeur avancé d'un cran
+			interface[Current_Page].button[Current_Pos].encP();
+			break;
+		case CLICK: // Click avec l'encodeur
+			interface[Current_Page].button[Current_Pos].click();
+			break;
+		case ENCODER_MINUS: // Encodeur reculé d'un cran
+			interface[Current_Page].button[Current_Pos].encM();
+			break;
+		case PUSH_BACK: // Bouton Back enfoncé
+			changeScreen(interface[Current_Page].previous);
+			Action=NONE;
+			break;
+	}
+/*TODO : remove this
   // Correspond au bouton de retour à configurer
   if (receiveBackClick()) { changeScreen(Previous_screen); Alarm.delay(50);}
   if (doClick) {doEnter(); doClick=FALSE;}
@@ -360,6 +430,7 @@ void loop() {
   if (doRefreshValues) {refreshValues(); doRefreshValues=FALSE;}
   Alarm.delay(10);
 //TODO : choose a real timer
+*/
 
   //if (sizeof(interface[Current_screen].refreshList)) {refreshAreas();}
 }
