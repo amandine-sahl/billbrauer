@@ -47,6 +47,12 @@ BillBrauer est une cuve de brassage avec moteur, une balance integré avec stock
 #define CYAN 0xFFE0
 #define WHITE 0xFFFF
 
+//Definition des paramètres d'affichage des boutons
+#define AREA_RADIUS 4
+#define TEXT_PADDING 5
+#define FOCUS_COLOR 0x07FF
+#define EDIT_COLOR 0x07E0
+
 //Definition des tempos de rafraichissement valeurs et ecran
 #define TEMPERATURE_RATE 1
 #define WEIGHT_RATE 1
@@ -81,8 +87,8 @@ float Temp_actual=0; //Temperature actuelle
 float Temp_goal=0; // Temperature de consigne pour le thermostat
 float Time_left=90;
 bool Timer_set=FALSE;
-float Weight_actual=0;
-float Weight_tare=0;
+float Weigth_actual=0;
+float Weigth_tare=0;
 //unsigned int Weight_readings[10]; // Liste de 10 lectures de la valeur de 0 à 1023
 float Scale_define[2][2] = {{0,85},{2,96}};
  // Tares enregistrée TODO :à reporter dans un fichier de configuration à mettre sur la carte SD ??
@@ -111,67 +117,127 @@ bool Heating_state=FALSE; // Correspond à l'état de la resistance, il s'agit d
 // Zone valeurs affichées : position x, position y, largeur, hauteur, pointeur variable globale
 // TODO:le nombre de boutons donnera le nombre de positions par ecran
 
-/*
-// Définitions des fonctions de "callback"
-void goPage0(void) {changeScreen(0);};
-void goPage1(void) {changeScreen(1);};
-void goPage2(void) {changeScreen(2);};
-void goPage3(void) {changeScreen(3);};
-void goPage4(void) {changeScreen(4);};
-void goEdit(void) {doEdit=TRUE;};
-void goTare(void) {};
-void goSetScale(void) {changeScreen(5);};
-*/
 // Définitions des écrans et des zones d'affichage correspondantes
 // x[0,159] et y[0,127]
 
 
-//FONCTIONS DE CALLBACK
-//Pour les fonctions
-void ForwPos() {
-
-}
-
-void BackPos() {
-
-}
-
-void ClickPos() {
-
-}
-
-static Page interface[3] = {
+static Page interface[4] = {
 	{0,0, //Page de demarrage
 		0,{}, // Affichages simples
 		0,{}, // Valeurs à rafraichir
 		2,{ // Boutons
-		{{10,10,140,50,BLACK,RED,2,"Manuel"},FALSE,NULL,NULL,1,1,1,ForwPos,BackPos,ClickPos}, 
+		{{10,10,140,50,BLACK,RED,2,"Manuel"},FALSE,NULL,1,1,1,ForwPos,BackPos,ClickPos}, 
 		//{x,y,h,w,color,bg_color,text_size,text,dec,val_ptr,txt_ptr,prev,next,link,encP,encM,Click}
-		{{10,65,140,50,BLACK,RED,2,"Automatique"},FALSE,NULL,NULL,0,0,1,ForwPos,BackPos,ClickPos}
+		{{10,65,140,50,BLACK,RED,2,"Automatique"},FALSE,NULL,0,0,1,ForwPos,BackPos,ClickPos}
 		} 
 	},
 	{0,0, // Mode Manuel
 		0,{}, // Affichages simples
 		0,{}, // Valeurs à rafraichir
 		3,{ // Boutons
-		{{10,10,140,30,BLACK,RED,2,"Balance"},FALSE,NULL,NULL,2,1,2,ForwPos,BackPos,ClickPos},
-		{{10,45,140,30,BLACK,RED,2,"Thermostat"},FALSE,NULL,NULL,0,2,0,ForwPos,BackPos,ClickPos},
-		{{10,80,140,30,BLACK,RED,2,"Moteur"},FALSE,NULL,NULL,1,0,0,ForwPos,BackPos,ClickPos}
+		{{10,10,140,30,BLACK,RED,2,"Balance"},FALSE,NULL,2,1,2,ForwPos,BackPos,ClickPos},
+		{{10,45,140,30,BLACK,RED,2,"Thermostat"},FALSE,NULL,0,2,0,ForwPos,BackPos,ClickPos},
+		{{10,80,140,30,BLACK,RED,2,"Moteur"},FALSE,NULL,1,0,0,ForwPos,BackPos,ClickPos}
 		} 
 	},
 	{1,0, // Balance
 		1,{ // Affichages simples
-		{100,20,50,30,BLACK,RED, 2,"kg"}}// unité mesure instantanée
+		{100,10,50,30,BLACK,RED, 2,"kg"}// unité mesure instantanée
 		}, 
 		1,{ // Valeurs à rafraichir
-		{{10,10,90,30,BLACK,RED,3,""},TRUE,&Weigth_actual}
+		{{10,10,90,30,BLACK,RED,2,"Heo"},TRUE,&Weigth_actual}
 		}, 
 		2,{ // Boutons
-		{{10,45,140,30,BLACK,RED,2,"Tarer"},FALSE,NULL,NULL,1,1,0,ForwPos,BackPos,ClickPos},
-		{{10,80,140,30,BLACK,RED,2,"Regler"},FALSE,NULL,NULL,0,0,0,ForwPos,BackPos,ClickPos},
+		{{10,45,140,30,BLACK,RED,2,"Tarer"},FALSE,NULL,1,1,0,ForwPos,BackPos,ClickPos},
+		{{10,80,140,30,BLACK,RED,2,"Regler"},FALSE,NULL,0,0,2,ForwPos,BackPos,ClickPos}
 		} 
+	},
+	{2,0, // Reglage Balance Poids 1
+		0,{},
+		/*1,{ // Affichages simples
+		{100,10,50,30,BLACK,RED, 2,"kg"}// unité mesure instantanée
+		}, */
+		1,{ // Valeurs à rafraichir
+		{{10,10,90,30,BLACK,RED,2,"Heo"},TRUE,&Weigth_actual}
+		}, 
+		0,{}
+		/*2,{ // Boutons
+		{{10,45,140,30,BLACK,RED,2,"Tarer"},FALSE,NULL,1,1,0,ForwPos,BackPos,ClickPos},
+		{{10,80,140,30,BLACK,RED,2,"Regler"},FALSE,NULL,0,0,0,ForwPos,BackPos,ClickPos}
+		} */
 	}
 };
+
+//CALLBACK INTERFACE
+//Pour les fonctions
+void ForwPos(void) { // Avance le focus à la position suivante
+	unsigned int Next_Pos=interface[Current_Page].button[Current_Pos].next; // Récupére la position du prochain bouton
+	// Rafraichissement couleur bouton actuel et bouton suivant	 
+	drawButton(&(interface[Current_Page].button[Current_Pos]), interface[Current_Page].button[Current_Pos].area.b); // Couleur de base pour le bouton actuel
+	drawButton(&(interface[Current_Page].button[Next_Pos]),FOCUS_COLOR); // Couleur du focus pour le prochain bouton
+	// Modification position actuelle
+	Current_Pos=Next_Pos;
+	Action=NONE;
+};
+
+void BackPos(void) { // Recule le focus à la position précédente
+	unsigned int Previous_Pos=interface[Current_Page].button[Current_Pos].prev;
+	// Rafraichissement couleur bouton actuel et bouton précédent
+	drawButton(&(interface[Current_Page].button[Current_Pos]), interface[Current_Page].button[Current_Pos].area.b); // Couleur de base pour le bouton actuel
+	drawButton(&(interface[Current_Page].button[Previous_Pos]),FOCUS_COLOR); // Couleur du focus pour le prochain bouton
+	// Modification position actuelle
+	Current_Pos=Previous_Pos;
+	Action=NONE;
+};
+
+void ClickPos(void) { // Charge la page désignée par la position
+	unsigned int Next_Page=interface[Current_Page].button[Current_Pos].link;
+	Current_Pos=interface[Next_Page].init_pos;
+	drawScreen(&(interface[Next_Page]));// Chargement nouvelle page
+	// Modification page actuelle
+	Current_Page=Next_Page;
+	Action=NONE;	
+};
+
+void ForwVal(void) { // Incremente la valeur associée au bouton actuel ou avance d'une position
+	if (Edit) {
+	// Increment de la valeur pointée
+	(*(interface[Current_Page].button[Current_Pos].value))++; //TODO : prévoir un increment au dizieme ou à l'unité
+	// Rafraichissement valeur du bouton actuel
+	refreshButton(&(interface[Current_Page].button[Current_Pos]), EDIT_COLOR);
+	Action=NONE;
+	}
+	else {ForwPos();}
+};
+
+void BackVal(void) { // Decremente la valeur associée au bouton actuel ou recule d'une position
+	if (Edit) {
+	// Decrement de la valeur pointée
+	(*(interface[Current_Page].button[Current_Pos].value))--;
+	// Rafraichissement valeur du bouton actuel
+	refreshButton(&(interface[Current_Page].button[Current_Pos]), EDIT_COLOR);
+	Action=NONE;
+	}
+	else {BackPos();}
+};
+
+void ClickVal(void) { // Passe en mode edition ou en mode navigation
+	if (Edit) { 
+		// Rafraichissement couleur bouton actuel : edit à focus
+		drawButton(&(interface[Current_Page].button[Current_Pos]),FOCUS_COLOR);
+		Edit=FALSE;
+	}
+	else { 
+		// Rafraichissement  couleur bouton actuel : focus à edit
+		drawButton(&(interface[Current_Page].button[Current_Pos]),EDIT_COLOR);
+		Edit=TRUE; 
+	}
+	Action=NONE;
+};
+
+
+
+
 /*
 static Page interface[6] = 
 {
@@ -220,6 +286,7 @@ static Page interface[6] =
 //Page Current_screen;
 
 // CONFIGURATION AFFICHAGE
+/*
 // pour définir les bords des boutons
 static unsigned int area_radius=4;
 // pour l'espacement du texte par rapport au bord supérieur gauche
@@ -284,13 +351,85 @@ void refreshValues(void){
 		}
 	//}	
 };
+*/
 
+//AFFICHAGE
+void drawDisplay(Display *area) { // Affiche les affichages simples
+	drawArea(area, area->b);
+	drawText(area, area->text,area->b);
+};
+
+void drawValue(Value *value) { // Affiche la zone de la valeur et la valeur
+	drawArea(&(value->area),value->area.b);
+	refreshValue(value);
+};
+
+void refreshValue(Value *value) { // Rafraichit uniquement la valeur
+	drawText(&(value->area), value->area.text, value->area.b);
+	/*
+	Screen.setTextColor (value->area.f, value->area.b);
+	Screen.setTextSize (value->area.s);
+	char float_text[5];
+	double floatings=10.0;
+	dtostrf(floatings,4,1,float_text);
+	//dtostrf((*value->value),4,1,float_text);
+	Screen.text(float_text,value->area.x+TEXT_PADDING,value->area.y+TEXT_PADDING);
+	*/
+};
+
+void drawButton(Position *button, unsigned int bg_color) { // Affiche le bouton avec la bonne couleur de focus
+	drawArea(&(button->area), bg_color);
+	refreshButton(button, bg_color);
+};
+
+void refreshButton(Position *button, unsigned int bg_color) { // Rafraichit la valeur du bouton
+	drawText(&(button->area), button->area.text, bg_color);
+};
+
+void drawScreen(Page *screen) { // Affiche la page demandée
+	Screen.background(0,0,0); // Efface l'ecran
+	if (screen->numDisplays) { // Affiche les affichages simples
+		for (unsigned int i; i<screen->numDisplays; i++) {
+			drawDisplay(&(screen->display[i]));
+		}
+	}
+	if (screen->numValues) { // Affiche les valeurs à rafraichir automatiquement
+		for (unsigned int i; i<screen->numValues; i++) {
+			drawValue(&(screen->value[i]));		
+		}
+	}
+	if (screen->numButtons) { // Affiche les boutons
+		for (unsigned int i; i<screen->numButtons; i++) {
+			unsigned int bg_color=screen->button[i].area.b;
+			if (i==Current_Pos) {bg_color=FOCUS_COLOR;}
+			drawButton(&(screen->button[i]),bg_color);
+		}
+	}
+};
+
+void drawArea(Display *area, unsigned int bg_color) { // Affiche une zone sans le texte
+	Screen.fillRoundRect(area->x,area->y,area->w,area->h,AREA_RADIUS,bg_color);
+};
+
+void drawText(Display *area, char text[12], unsigned int bg_color) { // Affiche uniquement le texte sur la zone
+	if (!text) {text=area->text;}	
+	Screen.setTextColor ( area->f, bg_color);
+	Screen.setTextSize (area->s);
+	Screen.text(text,area->x+TEXT_PADDING,area->y+TEXT_PADDING);
+};
+
+//ALERTE SONORE
+void playTone() { // Joue une note A4 pendant 1000ms
+	tone(7,440,200);
+	//noTone(7);
+};
+
+//SUIVI CAPTEURS
 void getTemp() {
 	Thermometer.requestTemperatures();
   	Alarm.delay(500);
 	Temp_actual=Thermometer.getTempC(ThermometerAdress);
 	Alarm.delay(100);
-	doRefreshValues=TRUE;
 };
 
 void getWeight() {
@@ -300,8 +439,7 @@ void getWeight() {
 		Alarm.delay(40);
 	}
 	float analogAverage=analogValTotal/WEIGHT_READINGS;
-	Weight_actual=mapWeight(analogAverage,Scale_define[0][1],Scale_define[1][1],Scale_define[0][0],Scale_define[1][0]);
-	doRefreshValues=TRUE;	
+	Weigth_actual=mapWeight(analogAverage,Scale_define[0][1],Scale_define[1][1],Scale_define[0][0],Scale_define[1][0]);
 };
 
 float mapWeight(float x, float in_min, float in_max, float out_min, float out_max){
@@ -309,53 +447,17 @@ float mapWeight(float x, float in_min, float in_max, float out_min, float out_ma
 };
 
 
+//ACTION UTILISATEURS
 void receiveEncoder(void) {
-   //Previous_position=Current_position;
-   if (digitalRead(ENC_A) == digitalRead(ENC_B)) {
-    // si edition valeur , doit incrementer la valeur
-    // si changement position focus, doit changer focus
-    // incremente dans les autres cas
-    // changePosition(1);
-	//if (Current_position==interface[Current_screen].p-1){Current_position=0;} 
-	//else{ Current_position++;};
-	Action=ENCODER_PLUS;
-  } else {
-    // decremente dans les autres cas
-	//if (Current_position==0){ Current_position=interface[Current_screen].p-1;} 
-	//else{ Current_position--;};
-	Action=ENCODER_MINUS;
-  }
-  //doRefreshFocus=TRUE;
+	if (digitalRead(ENC_A) == digitalRead(ENC_B)) { Action=ENCODER_PLUS; } // Déclenche le trigger correspondant au prochain tour de boucle
+	else { Action=ENCODER_MINUS; }
 }
-
-/*void changePosition(bool move_forward){
-   unsigned int screen_pos_max=interface[Current_screen].p-1;
-// TODO : modifier cette fonction en permettant l'édition de valeurs
-   if (move_forward){
-	
-   } else {
-	
-   }
-   doRefresh=TRUE;
-}*/
 
 void receiveClick(void) {Action=CLICK;}
 
 bool receiveBackClick(void) {if (analogRead(A7) >500){return TRUE;}else{return FALSE;}}
 
-/*
-void doEnter(void) {
-// soit provoque un changement d'ecran
-// soit provoque une edition de valeurs
- // efface l'ecran
- 	//Screen.background(0,0,0);
- // lance la fonction de callback pour l'écran et le bouton actuel
-	interface[Current_screen].buttons[Current_position].pf();
-}
-*/
-
-
-
+//SETUP
 void setup() {
   //INTERFACE UTILISATEUR
   // Initialisation de l'ecran
@@ -386,7 +488,7 @@ void setup() {
 	Thermometer.setWaitForConversion(false);  // rend la requete asynchrone, il faut donc mettre un delay dans la loop pour attendre apres un request ou faire d'autres choses entre temps ??
 
 
-  // EVENEMENTS REPETITIFS
+  // EVENEMENTS CAPTEURS
   	Alarm.timerRepeat(TEMPERATURE_RATE,getTemp);
 	Alarm.delay(500);
 	Alarm.timerRepeat(WEIGHT_RATE,getWeight);
@@ -396,11 +498,11 @@ void setup() {
 // EFFECTEURS
 
 //Dessine l'écran de demarrage
-	Current_screen=0;
-	//drawScreen();
-  //drawScreen(Current_screen);
+	drawScreen(&(interface[0]));
 }
 
+
+//LOOP
 void loop() {
   //int analogWeight=analogRead(A6); // prend 1ms normalement, il faut en faire plusieurs et faire une moyenne
 	if (receiveBackClick()) { Action=PUSH_BACK;} // Pour la lisibilite seulement : test de l'état du bouton Back
@@ -411,28 +513,17 @@ void loop() {
 			interface[Current_Page].button[Current_Pos].encP();
 			break;
 		case CLICK: // Click avec l'encodeur
-			interface[Current_Page].button[Current_Pos].click();
+			interface[Current_Page].button[Current_Pos].clic();
 			break;
 		case ENCODER_MINUS: // Encodeur reculé d'un cran
 			interface[Current_Page].button[Current_Pos].encM();
 			break;
 		case PUSH_BACK: // Bouton Back enfoncé
-			changeScreen(interface[Current_Page].previous);
+			drawScreen(&(interface[interface[Current_Page].previous]));
 			Action=NONE;
 			break;
 	}
-/*TODO : remove this
-  // Correspond au bouton de retour à configurer
-  if (receiveBackClick()) { changeScreen(Previous_screen); Alarm.delay(50);}
-  if (doClick) {doEnter(); doClick=FALSE;}
-  if (doRefresh) {refreshScreen(); doRefresh=FALSE;} 
-  if (doRefreshFocus) {refreshFocus(); doRefreshFocus=FALSE;}
-  if (doRefreshValues) {refreshValues(); doRefreshValues=FALSE;}
-  Alarm.delay(10);
-//TODO : choose a real timer
-*/
-
-  //if (sizeof(interface[Current_screen].refreshList)) {refreshAreas();}
+	Alarm.delay(10);
 }
 
 

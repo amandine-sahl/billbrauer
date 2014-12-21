@@ -53,13 +53,13 @@ typedef struct {
 	Display area;
 	bool decimal;
 	float (*value); // pointeur vers une valeur pour les zones éditables sinon NULL
-	char (*text[12]); //pointeur vers un texte pour les zones Start/Stop sinon NULL
+	//char (*text[12]); //pointeur vers un texte pour les zones Start/Stop sinon NULL TODO : à revoir car cuasé problème
 	unsigned int prev; // next position for ForwardPos
 	unsigned int next; // previous position for BackwardPos
 	unsigned int link; // go to page number for ClickPos
 	ptrf encP; 
 	ptrf encM;	
-	ptrf click;
+	ptrf clic;
 }Position;
 
 typedef struct {
@@ -70,7 +70,7 @@ typedef struct {
 	unsigned int numValues; // nombre de valeur pour les for
 	Value value[4]; // correspond aux variables rafraichies automatiquement
 	unsigned int numButtons; //nombre de valeur pour les for
-        Button button[4]; // correspond aux zones selectionnables
+        Position button[4]; // correspond aux zones selectionnables
 }Page;
 
 
@@ -93,19 +93,26 @@ typedef struct {
 
 }State;*/
 
+//AFFICHAGE
+void drawDisplay(Display *area);// Affiche les affichages simples
+void drawValue(Value *value);// Affiche la zone de la valeur et la valeur
+void refreshValue(Value *value);// Rafraichit uniquement la valeur
+void drawButton(Position *button, unsigned int bg_color);// Affiche le bouton avec la bonne couleur de focus
+void refreshButton(Position *button, unsigned int bg_color);// Rafraichit la valeur du bouton
+void drawScreen(Page *screen);// Affiche la page demandée
 
-void drawButton(Area *button, bool has_focus);
-void drawScreen(void);
-void refreshValues(void);
-void refreshScreen(void);
-void refreshFocus(void);
-//void Menu0(void);
-//void changePosition(bool move_forward);
+void drawArea(Display *area, unsigned int bg_color);// Affiche une zone sans le texte
+void drawText(Display *area, char text[12], unsigned int bg_color); // Affiche uniquement le texte sur la zone
+
+//FONCTION SUIVI CAPTEURS
+void getTemp();
+void getWeight();
+float mapWeight(float x, float in_min, float in_max, float out_min, float out_max);
+
+//FONCTION ACTION UTILISATEURS
 void receiveEncoder(void);
 void receiveClick(void);
-void printhello(void);
-void checkPB(void);
-void changeScreen(unsigned int screen_index);
-void getTemp(void);
-void doEnter(void);
-void getWeight(void);
+bool receiveBackClick(void);
+
+
+
