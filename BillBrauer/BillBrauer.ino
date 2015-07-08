@@ -241,123 +241,6 @@ void ClickVal(void) { // Passe en mode edition ou en mode navigation
 };
 
 
-
-
-/*
-static Page interface[6] = 
-{
-        {1,2,0,{},{},
-            {
-            {10,10,140,50,BLACK,RED,"Manuel" ,NULL ,FALSE, goPage1  },
-            {10,65,140,50, BLACK,RED,"Automatique" ,NULL ,FALSE, goPage2  }
-            }
-        },
-	{2,3,0,{},{},
-            {
-            {10,10,140,30,BLACK,RED,"Balance" ,NULL ,FALSE, goPage4 },
-            {10,45,140,30, BLACK,RED,"Thermostat",NULL ,FALSE, goPage3 },
-	    {10,80,140,30, BLACK, RED,"Moteur",NULL,FALSE, goPage0 }
-            }
-        },
-	{3,2,0,{},{},
-            {
-            {10,10,140,30,BLACK,RED,  "Eau" ,NULL ,FALSE, goPage0 },
-            {10,45,140,30, BLACK,RED,  "Malt",NULL ,FALSE, goPage0 }
-            }
-        },
-	{4,3,1,{0},{},
-            {
-        	{10,10,140,30,BLACK,RED,  "Temp : " ,&Temp_actual ,FALSE, goPage0 },
-         	{10,45,140,30, BLACK,RED,  "Cible: ",&Temp_goal ,TRUE, goEdit },
-	    	{10,80,140,30, BLACK, RED,"Duree:",&Time_left,FALSE, goPage0 }
-            }
-	},
-	{5,3,1,{0},{},
-	   {
-		{10,10,140,30,BLACK,RED,  "Poids: " ,&Weight_actual ,FALSE, goPage0 },
-		{10,45,140,30,BLACK,RED, "Tarer",NULL,FALSE,goTare },
-		{10,80,140,30, BLACK, RED,"Regler",NULL,FALSE, goSetScale }
-	   }
-	},
-	{6,2,1,{0},{},
-	   {
-		{10,10,140,20,BLACK,RED,  "Poids 1: " ,&Weight_actual ,FALSE, goPage0 },
-		{10,45,140,20,BLACK,RED, "Tarer",NULL,FALSE, goTare },
-		{10,80,140,20, BLACK, RED,"Next",NULL,FALSE, goSetScale }
-	   }
-	},
-};
-*/
-//Page Current_screen;
-
-// CONFIGURATION AFFICHAGE
-/*
-// pour définir les bords des boutons
-static unsigned int area_radius=4;
-// pour l'espacement du texte par rapport au bord supérieur gauche
-static unsigned int text_padding=5;
-// défini la taille du texte : trois valeurs possibles : 1 (defaut), 2 ou 
-static unsigned int text_size=2;
-// couleur du cadre pour le bouton avec le focus
-static unsigned int focus_color=YELLOW;
-
-void drawButton(Area *button, bool has_focus) {
-	unsigned int background_color;
-	if (has_focus) { background_color=focus_color;} else { background_color=button->b;};
-	Screen.fillRoundRect(button->x,button->y,button->w,button->h,area_radius,background_color);
-	Screen.setTextColor ( BLACK, background_color);
-	Screen.setTextSize (text_size);
-	char float_text[5];
-	char text_out[20];
-	strcpy(text_out, button->c);
-	//Si le bouton posséde une valeur à afficher : afficher cette valeur
-	if (button->v !=NULL) {
-		dtostrf((*button->v),4,1,float_text); 
-		strcat(text_out, float_text);}
-	Screen.text(text_out, button->x +text_padding, button->y +text_padding);
-};
-
-void refreshScreen() {
- // Efface l'ecran précédent et affiche l'ecran actuel
- // parcourt tous les boutons sans exception pour l'initialisation de l'écran
-	Screen.background(0,0,0);
-	for(unsigned int i ; i<interface[Current_screen].p; i++){
-		// Draw with focus
-		if (i==Current_position) {drawButton(&(interface[Current_screen].buttons[i]), 1);
-		// Draw without focus
-		} else { drawButton(&(interface[Current_screen].buttons[i]), 0);}
-	}
-};
-
-void refreshFocus() {
- // Met le focus sur la position actuelle et l'enleve sur la position précédente
-	drawButton(&(interface[Current_screen].buttons[Current_position]), 1);
-	drawButton(&(interface[Current_screen].buttons[Previous_position]), 0);
-};
-
-void changeScreen(unsigned int screen_index) {
-	//Declenche le trigger pour un rafraichissement lors de la boucle
-	Previous_screen=Current_screen;
-	Current_screen=screen_index;
-	Current_position=0; 
-	doRefresh=TRUE;
-};
-
-void refreshValues(void){
-  // Reaffiche les boutons à rafraichir de la page
-	//unsigned char refreshListLength = interface[Current_screen].refreshListLength;
-	//if (refreshListLength!=0) {
-		for (unsigned int i; i<interface[Current_screen].refreshListLength;i++){
-			//TODO : find a way to deal with focus another way
-			//if (Current_position==interface[Current_screen].refreshList[i]) { 
-				drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 1); 
-//} 
-//			else {	drawButton(&(interface[Current_screen].buttons[interface[Current_screen].refreshList[i]]), 0); }
-		}
-	//}	
-};
-*/
-
 //AFFICHAGE
 void drawDisplay(Display *area) { // Affiche les affichages simples
 	drawArea(area, area->b);
@@ -488,7 +371,7 @@ void setup() {
 	Screen.background(0,0,0);
   Screen.stroke (WHITE);
   Screen.setTextSize (2);
-  Screen.text("Billbrauer alpha",25,25);
+  Screen.text("BILLBRAUER",25,25);
   Alarm.delay(5000);
   Screen.background(0,0,0);
  
