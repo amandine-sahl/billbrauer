@@ -45,7 +45,7 @@ typedef struct {
 
 typedef struct {
 	Display area;
-	bool decimal; // pour gérer l'affichage des int ou des décimales pour le temps (entier en minutes) et les temperatures (avec une decimale)
+	bool decimal; // a utiliser pour savoir le type d'affichage de la valeur
 	float (*value); 
 }Value;
 
@@ -97,6 +97,7 @@ typedef struct {
 void drawDisplay(Display *area);// Affiche les affichages simples
 void drawValue(Value *value);// Affiche la zone de la valeur et la valeur
 void refreshValue(Value *value);// Rafraichit uniquement la valeur
+void refreshValues(void);
 void drawButton(Position *button, unsigned int bg_color);// Affiche le bouton avec la bonne couleur de focus
 void refreshButton(Position *button, unsigned int bg_color);// Rafraichit la valeur du bouton
 void drawScreen(Page *screen);// Affiche la page demandée

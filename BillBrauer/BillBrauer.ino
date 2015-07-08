@@ -77,6 +77,12 @@ static DeviceAddress ThermometerAdress={0x28,0x3E,0x40,0xCD,0x05,0x00,0x00,0x98}
 
 // VARIABLES ETATS INTERFACE
 volatile unsigned int Current_Page=0;
+/* TODO Find a way to use pointer nicely to point to the current page : needs an initialization part in the setup() fonction
+volatile *Page CPage; 
+volatile *Page Npage;
+volatile *Position PButton;
+volatile *Position CButton;
+volatile *Position NButton;*/
 volatile unsigned int Current_Pos=0;
 volatile bool Edit=FALSE;
 volatile unsigned int Action=NONE;
@@ -87,7 +93,7 @@ float Temp_actual=0; //Temperature actuelle
 float Temp_goal=0; // Temperature de consigne pour le thermostat
 float Time_left=90;
 bool Timer_set=FALSE;
-float Weigth_actual=0;
+float Weigth_actual=50;
 float Weigth_tare=0;
 //unsigned int Weight_readings[10]; // Liste de 10 lectures de la valeur de 0 à 1023
 float Scale_define[2][2] = {{0,85},{2,96}};
@@ -145,7 +151,7 @@ static Page interface[4] = {
 		{100,10,50,30,BLACK,RED, 2,"kg"}// unité mesure instantanée
 		}, 
 		1,{ // Valeurs à rafraichir
-		{{10,10,90,30,BLACK,RED,2,"Heo"},TRUE,&Weigth_actual}
+		{{10,10,100,30,BLACK,RED,2,"kg"},TRUE,&Temp_actual}
 		}, 
 		2,{ // Boutons
 		{{10,45,140,30,BLACK,RED,2,"Tarer"},FALSE,NULL,1,1,0,ForwPos,BackPos,ClickPos},
@@ -153,12 +159,11 @@ static Page interface[4] = {
 		} 
 	},
 	{2,0, // Reglage Balance Poids 1
-		0,{},
-		/*1,{ // Affichages simples
+		1,{ // Affichages simples
 		{100,10,50,30,BLACK,RED, 2,"kg"}// unité mesure instantanée
-		}, */
+		},
 		1,{ // Valeurs à rafraichir
-		{{10,10,90,30,BLACK,RED,2,"Heo"},TRUE,&Weigth_actual}
+		{{10,10,90,30,BLACK,RED,2,"Heo"},TRUE,NULL}
 		}, 
 		0,{}
 		/*2,{ // Boutons
@@ -360,21 +365,30 @@ void drawDisplay(Display *area) { // Affiche les affichages simples
 };
 
 void drawValue(Value *value) { // Affiche la zone de la valeur et la valeur
-	drawArea(&(value->area),value->area.b);
+	Display *area=&(value->area);
+	drawArea(area,area->b);
 	refreshValue(value);
 };
 
 void refreshValue(Value *value) { // Rafraichit uniquement la valeur
-	drawText(&(value->area), value->area.text, value->area.b);
-	/*
+	//drawText(&(value->area), value->area.text, value->area.b);
+	
 	Screen.setTextColor (value->area.f, value->area.b);
 	Screen.setTextSize (value->area.s);
 	char float_text[5];
-	double floatings=10.0;
-	dtostrf(floatings,4,1,float_text);
-	//dtostrf((*value->value),4,1,float_text);
+	//double floatings=10.0;
+	//dtostrf(floatings,4,1,float_text);
+	dtostrf((*value->value),4,1,float_text);
 	Screen.text(float_text,value->area.x+TEXT_PADDING,value->area.y+TEXT_PADDING);
-	*/
+};
+
+void refreshValues() {
+	unsigned int valNum=interface[Current_Page].numValues;
+	if (valNum) {
+		for (unsigned int i; i<valNum; i++) {
+			drawValue(&(interface[Current_Page].value[i]));		
+		}
+	}	
 };
 
 void drawButton(Position *button, unsigned int bg_color) { // Affiche le bouton avec la bonne couleur de focus
@@ -388,21 +402,23 @@ void refreshButton(Position *button, unsigned int bg_color) { // Rafraichit la v
 
 void drawScreen(Page *screen) { // Affiche la page demandée
 	Screen.background(0,0,0); // Efface l'ecran
-	if (screen->numDisplays) { // Affiche les affichages simples
-		for (unsigned int i; i<screen->numDisplays; i++) {
-			drawDisplay(&(screen->display[i]));
-		}
-	}
 	if (screen->numValues) { // Affiche les valeurs à rafraichir automatiquement
 		for (unsigned int i; i<screen->numValues; i++) {
 			drawValue(&(screen->value[i]));		
 		}
 	}
+	
 	if (screen->numButtons) { // Affiche les boutons
 		for (unsigned int i; i<screen->numButtons; i++) {
 			unsigned int bg_color=screen->button[i].area.b;
 			if (i==Current_Pos) {bg_color=FOCUS_COLOR;}
 			drawButton(&(screen->button[i]),bg_color);
+		}
+	}
+
+	if (screen->numDisplays) { // Affiche les affichages simples
+		for (unsigned int i; i<screen->numDisplays; i++) {
+			drawDisplay(&(screen->display[i]));
 		}
 	}
 };
@@ -492,6 +508,8 @@ void setup() {
   	Alarm.timerRepeat(TEMPERATURE_RATE,getTemp);
 	Alarm.delay(500);
 	Alarm.timerRepeat(WEIGHT_RATE,getWeight);
+	// TODO : TODO TODO Find why it doesnt refresh
+	Alarm.timerRepeat(2,refreshValues);
 // Initialisation de la balance (pas utile)
 //pinMode(A6,INPUT);
 
