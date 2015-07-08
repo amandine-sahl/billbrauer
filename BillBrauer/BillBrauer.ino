@@ -373,7 +373,9 @@ void drawValue(Value *value) { // Affiche la zone de la valeur et la valeur
 void refreshValue(Value *value) { // Rafraichit uniquement la valeur
 	//drawText(&(value->area), value->area.text, value->area.b);
 	
-	Screen.setTextColor (value->area.f, value->area.b);
+	//Screen.setTextColor (value->area.f, value->area.b); Doesn't work anymore
+  Screen.stroke(value->area.f);
+  //Screen.background(value->area.b);
 	Screen.setTextSize (value->area.s);
 	char float_text[5];
 	//double floatings=10.0;
@@ -429,7 +431,9 @@ void drawArea(Display *area, unsigned int bg_color) { // Affiche une zone sans l
 
 void drawText(Display *area, char text[12], unsigned int bg_color) { // Affiche uniquement le texte sur la zone
 	if (!text) {text=area->text;}	
-	Screen.setTextColor ( area->f, bg_color);
+	//Screen.setTextColor ( area->f, bg_color);
+  Screen.stroke(area->f);
+  //Screen.background(bg_color);
 	Screen.setTextSize (area->s);
 	Screen.text(text,area->x+TEXT_PADDING,area->y+TEXT_PADDING);
 };
@@ -482,6 +486,11 @@ void setup() {
 	Screen.setRotation(3);
  // Fond noir
 	Screen.background(0,0,0);
+  Screen.stroke (WHITE);
+  Screen.setTextSize (2);
+  Screen.text("Billbrauer alpha",25,25);
+  Alarm.delay(5000);
+  Screen.background(0,0,0);
  
  // Interruption de l'encodeur (les resistances pull up de l'arduino ne sont pas utilisés)
 	pinMode(2,INPUT);
