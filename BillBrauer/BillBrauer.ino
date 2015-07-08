@@ -50,7 +50,8 @@ BillBrauer est une cuve de brassage avec moteur, une balance integré avec stock
 
 //Definition des paramètres d'affichage des boutons
 #define AREA_RADIUS 4
-#define TEXT_PADDING 5
+#define X_TEXT_PADDING 10
+#define Y_TEXT_PADDING 3
 #define FOCUS_COLOR 0x07FF
 #define EDIT_COLOR 0x07E0
 
@@ -94,10 +95,13 @@ float Temp_actual=0; //Temperature actuelle
 float Temp_goal=0; // Temperature de consigne pour le thermostat
 float Time_left=90;
 bool Timer_set=FALSE;
-float Weigth_actual=50;
+
+float analogWeigthAverage = 0;
+float Weigth_actual=0;//without tare
+float Weigth_corrected=0;// tare substracted from actual
 float Weigth_tare=0;
 //unsigned int Weight_readings[10]; // Liste de 10 lectures de la valeur de 0 à 1023
-float Scale_define[2][2] = {{0,85},{2,96}};
+float Scale_define[2][2] = {{0,84},{2,96}};
  // Tares enregistrée TODO :à reporter dans un fichier de configuration à mettre sur la carte SD ??
 
 // VARIABLES EFFECTEURS
@@ -134,7 +138,7 @@ const Page interface[4] PROGMEM = {
 		0,{}, // Valeurs à rafraichir
 		2,{ // Boutons
 		{{10,10,140,50,BLACK,RED,2,"Manuel"},FALSE,NULL,1,1,1,ForwPos,BackPos,ClickPos}, 
-		//{x,y,h,w,color,bg_color,text_size,text,dec,val_ptr,txt_ptr,prev,next,link,encP,encM,Click}
+		//{x,y,w,h,color,bg_color,text_size,text,dec,val_ptr,txt_ptr,prev,next,link,encP,encM,Click}
 		{{10,65,140,50,BLACK,RED,2,"Automatique"},FALSE,NULL,0,0,1,ForwPos,BackPos,ClickPos}
 		} 
 	},
@@ -142,9 +146,9 @@ const Page interface[4] PROGMEM = {
 		0,{}, // Affichages simples
 		0,{}, // Valeurs à rafraichir
 		3,{ // Boutons
-		{{10,10,140,30,BLACK,RED,2,"Balance"},FALSE,NULL,2,1,2,ForwPos,BackPos,ClickPos},
-		{{10,45,140,30,BLACK,RED,2,"Thermostat"},FALSE,NULL,0,2,0,ForwPos,BackPos,ClickPos},
-		{{10,80,140,30,BLACK,RED,2,"Moteur"},FALSE,NULL,1,0,0,ForwPos,BackPos,ClickPos}
+		{{10,10,140,30,BLACK,RED,2,"Balance"},FALSE,NULL,1,2,2,ForwPos,BackPos,ClickPos},
+		{{10,45,140,30,BLACK,RED,2,"Thermostat"},FALSE,NULL,2,1,3,ForwPos,BackPos,ClickPos},
+		{{10,80,140,30,BLACK,RED,2,"Moteur"},FALSE,NULL,0,1,0,ForwPos,BackPos,ClickPos}
 		} 
 	},
 	{1,0, // Balance
@@ -152,26 +156,29 @@ const Page interface[4] PROGMEM = {
 		{100,10,50,30,BLACK,RED, 2,"kg"}// unité mesure instantanée
 		}, 
 		1,{ // Valeurs à rafraichir
-		{{10,10,100,30,BLACK,RED,2,"kg"},TRUE,&Temp_actual}
+		{{10,10,90,30,BLACK,RED,2,"kg"},TRUE,&Weigth_corrected}
 		}, 
 		2,{ // Boutons
-		{{10,45,140,30,BLACK,RED,2,"Tarer"},FALSE,NULL,1,1,0,ForwPos,BackPos,ClickPos},
-		{{10,80,140,30,BLACK,RED,2,"Regler"},FALSE,NULL,0,0,2,ForwPos,BackPos,ClickPos}
+		{{10,45,140,30,BLACK,RED,2,"Tarer"},FALSE,NULL,1,1,0,ForwPos,BackPos,Tare},
+		{{10,80,140,30,BLACK,RED,2,"Regler"},FALSE,NULL,0,0,3,ForwPos,BackPos,ClickPos}
 		} 
 	},
-	{2,0, // Reglage Balance Poids 1
-		1,{ // Affichages simples
-		{100,10,50,30,BLACK,RED, 2,"kg"}// unité mesure instantanée
-		},
-		0,{ // Valeurs à rafraichir
-		{{10,10,90,30,BLACK,RED,2,"Heo"},TRUE,NULL}
-		}, 
-		0,{}
-		/*2,{ // Boutons
-		{{10,45,140,30,BLACK,RED,2,"Tarer"},FALSE,NULL,1,1,0,ForwPos,BackPos,ClickPos},
-		{{10,80,140,30,BLACK,RED,2,"Regler"},FALSE,NULL,0,0,0,ForwPos,BackPos,ClickPos}
-		} */
-	}
+  {1,0, // Thermostat
+    4,{ // Affichages simples
+    {10,5,140,20,WHITE,BLUE, 2,"Thermostat"},// Titre : Thermostat
+    {100,28,50,20,WHITE,GREEN, 2,"deg"},// unité
+    {10,51,87,20,BLACK,RED,2,"Cible:"},
+    {10,74,87,20,BLACK,RED,2,"Temps:"}
+    },
+    1,{ // Valeurs à rafraichir
+    {{10,28,87,20,BLACK,RED,2,"deg"},TRUE,&Temp_actual}
+    },
+    3,{ // Boutons
+    {{100,51,50,20,BLACK,RED,2,NULL},FALSE,&Temp_goal,1,2,1,ForwVal,BackVal,ClickVal},
+    {{100,74,50,20,BLACK,RED,2,"..."},FALSE,NULL,2,0,1,ForwPos,BackPos,ClickPos},
+    {{49,97,77,20,BLACK,RED,2,"Start"},FALSE,NULL,0,1,1,ForwPos,BackPos,ClickPos}
+    }
+  }
 };
 
 //CALLBACK INTERFACE
@@ -212,7 +219,7 @@ void ForwVal(void) { // Incremente la valeur associée au bouton actuel ou avanc
 	// Increment de la valeur pointée
 	(*(CPage.button[Current_Pos].value))++; //TODO : prévoir un increment au dizieme ou à l'unité
 	// Rafraichissement valeur du bouton actuel
-	refreshButton(&(CPage.button[Current_Pos]), EDIT_COLOR);
+	drawButtonValue(&(CPage.button[Current_Pos]), EDIT_COLOR);
 	Action=NONE;
 	}
 	else {ForwPos();}
@@ -223,7 +230,7 @@ void BackVal(void) { // Decremente la valeur associée au bouton actuel ou recul
 	// Decrement de la valeur pointée
 	(*(CPage.button[Current_Pos].value))--;
 	// Rafraichissement valeur du bouton actuel
-	refreshButton(&(CPage.button[Current_Pos]), EDIT_COLOR);
+	drawButtonValue(&(CPage.button[Current_Pos]), EDIT_COLOR);
 	Action=NONE;
 	}
 	else {BackPos();}
@@ -232,15 +239,19 @@ void BackVal(void) { // Decremente la valeur associée au bouton actuel ou recul
 void ClickVal(void) { // Passe en mode edition ou en mode navigation
 	if (Edit) { 
 		// Rafraichissement couleur bouton actuel : edit à focus
-		drawButton(&(CPage.button[Current_Pos]),FOCUS_COLOR);
+		drawButtonValue(&(CPage.button[Current_Pos]),FOCUS_COLOR);
 		Edit=FALSE;
 	}
 	else { 
 		// Rafraichissement  couleur bouton actuel : focus à edit
-		drawButton(&(CPage.button[Current_Pos]),EDIT_COLOR);
+		drawButtonValue(&(CPage.button[Current_Pos]),EDIT_COLOR);
 		Edit=TRUE; 
 	}
 	Action=NONE;
+};
+
+void Tare(void) {
+  Weigth_tare=Weigth_actual;
 };
 
 
@@ -267,7 +278,7 @@ void refreshValue(Value *value) { // Rafraichit uniquement la valeur
 	//double floatings=10.0;
 	//dtostrf(floatings,4,1,float_text);
 	dtostrf((*value->value),4,1,float_text);
-	Screen.text(float_text,value->area.x+TEXT_PADDING,value->area.y+TEXT_PADDING);
+	Screen.text(float_text,value->area.x+X_TEXT_PADDING,value->area.y+Y_TEXT_PADDING);
 };
 
 void refreshValues() {
@@ -279,13 +290,27 @@ void refreshValues() {
 	}	
 };
 
+void drawButtonValue(Position *button, unsigned int bg_color) { //Affiche un bouton avec une valeur à régler
+  drawArea(&(button->area), bg_color);
+  refreshButtonValue(button,bg_color);
+};
+
+void refreshButtonValue(Position *button,unsigned int bg_color) {
+  Screen.stroke(button->area.f);
+  Screen.setTextSize (button->area.s);
+  char float_text[5];
+  dtostrf((*button->value),3,0,float_text);
+  Screen.text(float_text,button->area.x+X_TEXT_PADDING,button->area.y+Y_TEXT_PADDING);
+}
+
 void drawButton(Position *button, unsigned int bg_color) { // Affiche le bouton avec la bonne couleur de focus
 	drawArea(&(button->area), bg_color);
 	refreshButton(button, bg_color);
 };
 
 void refreshButton(Position *button, unsigned int bg_color) { // Rafraichit la valeur du bouton
-	drawText(&(button->area), button->area.text, bg_color);
+  if (button->value) {drawButtonValue(button, bg_color); }
+  else {drawText(&(button->area), button->area.text, bg_color);}
 };
 
 void drawScreen(Page *screen) { // Affiche la page demandée
@@ -321,7 +346,7 @@ void drawText(Display *area, char text[12], unsigned int bg_color) { // Affiche 
   Screen.stroke(area->f);
   //Screen.background(bg_color);
 	Screen.setTextSize (area->s);
-	Screen.text(text,area->x+TEXT_PADDING,area->y+TEXT_PADDING);
+	Screen.text(text,area->x+X_TEXT_PADDING,area->y+Y_TEXT_PADDING);
 };
 
 //ALERTE SONORE
@@ -339,16 +364,19 @@ void getTemp() {
 };
 
 void getWeight() {
-	unsigned int analogValTotal;
+	/*unsigned int analogValTotal=0;
 	for (unsigned int i; i<WEIGHT_READINGS; i++) {
 		analogValTotal+=analogRead(A6);
-		Alarm.delay(40);
+		Alarm.delay(200);
 	}
-	float analogAverage=analogValTotal/WEIGHT_READINGS;
-	Weigth_actual=mapWeight(analogAverage,Scale_define[0][1],Scale_define[1][1],Scale_define[0][0],Scale_define[1][0]);
-};
+	float analogAverage=analogValTotal/WEIGHT_READINGS;*/
+  //int analogValue = analogRead(A6);
+	Weigth_actual=mapWeigth(analogWeigthAverage,Scale_define[0][1],Scale_define[1][1],Scale_define[0][0],Scale_define[1][0]);
+  Weigth_corrected=Weigth_actual-Weigth_tare;
+  };
 
-float mapWeight(float x, float in_min, float in_max, float out_min, float out_max){
+
+float mapWeigth(float x, float in_min, float in_max, float out_min, float out_max){
 	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 };
 
@@ -375,7 +403,7 @@ void setup() {
   Screen.stroke (WHITE);
   Screen.setTextSize (2);
   Screen.text("BILLBRAUER",25,25);
-  Alarm.delay(5000);
+  Alarm.delay(1000);
   Screen.background(0,0,0);
  
  // Interruption de l'encodeur (les resistances pull up de l'arduino ne sont pas utilisés)
@@ -418,7 +446,9 @@ void setup() {
 
 //LOOP
 void loop() {
-  //int analogWeight=analogRead(A6); // prend 1ms normalement, il faut en faire plusieurs et faire une moyenne
+  //TODO : change the way to get the weigth and smooth the value
+  int analogWeigth=analogRead(A6); // prend 1ms normalement, il faut en faire plusieurs et faire une moyenne
+  analogWeigthAverage=0.99*analogWeigthAverage + 0.01*analogWeigth;
 	if (receiveBackClick()) { Action=PUSH_BACK;} // Pour la lisibilite seulement : test de l'état du bouton Back
 	switch (Action) { // Vérifie si une action utilisateur a été demandée et lance le callback correspondant à l'état actuel le cas échéant
 		case NONE: // Pas d'action utilisateur à lancer

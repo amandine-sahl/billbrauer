@@ -54,8 +54,8 @@ typedef struct {
 	bool decimal;
 	float (*value); // pointeur vers une valeur pour les zones éditables sinon NULL
 	//char (*text[12]); //pointeur vers un texte pour les zones Start/Stop sinon NULL TODO : à revoir car cuasé problème
-	unsigned int prev; // next position for ForwardPos
-	unsigned int next; // previous position for BackwardPos
+	unsigned int next; // next position for ForwardPos
+	unsigned int prev; // previous position for BackwardPos
 	unsigned int link; // go to page number for ClickPos
 	ptrf encP; 
 	ptrf encM;	
