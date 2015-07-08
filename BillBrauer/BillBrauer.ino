@@ -2,6 +2,7 @@
 BillBrauer est une cuve de brassage avec moteur, une balance integré avec stockage continu des paramètres.
 */
 
+#include <avr/pgmspace.h>
 #include <TFT.h>
 #include <SPI.h>
 //#include <SD.h>
@@ -77,12 +78,12 @@ static DeviceAddress ThermometerAdress={0x28,0x3E,0x40,0xCD,0x05,0x00,0x00,0x98}
 
 // VARIABLES ETATS INTERFACE
 volatile unsigned int Current_Page=0;
-/* TODO Find a way to use pointer nicely to point to the current page : needs an initialization part in the setup() fonction
-volatile *Page CPage; 
-volatile *Page Npage;
-volatile *Position PButton;
-volatile *Position CButton;
-volatile *Position NButton;*/
+/* TODO Find a way to use pointer nicely to point to the current page : needs an initialization part in the setup() fonction*/
+Page CPage; //Current copy of the page from the PROGMEM
+Page NPage;
+Position PButton;
+Position CButton;
+Position NButton;
 volatile unsigned int Current_Pos=0;
 volatile bool Edit=FALSE;
 volatile unsigned int Action=NONE;
@@ -127,7 +128,7 @@ bool Heating_state=FALSE; // Correspond à l'état de la resistance, il s'agit d
 // x[0,159] et y[0,127]
 
 
-static Page interface[4] = {
+const Page interface[4] PROGMEM = {
 	{0,0, //Page de demarrage
 		0,{}, // Affichages simples
 		0,{}, // Valeurs à rafraichir
@@ -162,7 +163,7 @@ static Page interface[4] = {
 		1,{ // Affichages simples
 		{100,10,50,30,BLACK,RED, 2,"kg"}// unité mesure instantanée
 		},
-		1,{ // Valeurs à rafraichir
+		0,{ // Valeurs à rafraichir
 		{{10,10,90,30,BLACK,RED,2,"Heo"},TRUE,NULL}
 		}, 
 		0,{}
@@ -176,30 +177,32 @@ static Page interface[4] = {
 //CALLBACK INTERFACE
 //Pour les fonctions
 void ForwPos(void) { // Avance le focus à la position suivante
-	unsigned int Next_Pos=interface[Current_Page].button[Current_Pos].next; // Récupére la position du prochain bouton
+	unsigned int Next_Pos=CPage.button[Current_Pos].next; // Récupére la position du prochain bouton
 	// Rafraichissement couleur bouton actuel et bouton suivant	 
-	drawButton(&(interface[Current_Page].button[Current_Pos]), interface[Current_Page].button[Current_Pos].area.b); // Couleur de base pour le bouton actuel
-	drawButton(&(interface[Current_Page].button[Next_Pos]),FOCUS_COLOR); // Couleur du focus pour le prochain bouton
+	drawButton(&(CPage.button[Current_Pos]), CPage.button[Current_Pos].area.b); // Couleur de base pour le bouton actuel
+	drawButton(&(CPage.button[Next_Pos]),FOCUS_COLOR); // Couleur du focus pour le prochain bouton
 	// Modification position actuelle
 	Current_Pos=Next_Pos;
 	Action=NONE;
 };
 
 void BackPos(void) { // Recule le focus à la position précédente
-	unsigned int Previous_Pos=interface[Current_Page].button[Current_Pos].prev;
+	unsigned int Previous_Pos=CPage.button[Current_Pos].prev;
 	// Rafraichissement couleur bouton actuel et bouton précédent
-	drawButton(&(interface[Current_Page].button[Current_Pos]), interface[Current_Page].button[Current_Pos].area.b); // Couleur de base pour le bouton actuel
-	drawButton(&(interface[Current_Page].button[Previous_Pos]),FOCUS_COLOR); // Couleur du focus pour le prochain bouton
+	drawButton(&(CPage.button[Current_Pos]), CPage.button[Current_Pos].area.b); // Couleur de base pour le bouton actuel
+	drawButton(&(CPage.button[Previous_Pos]),FOCUS_COLOR); // Couleur du focus pour le prochain bouton
 	// Modification position actuelle
 	Current_Pos=Previous_Pos;
 	Action=NONE;
 };
 
 void ClickPos(void) { // Charge la page désignée par la position
-	unsigned int Next_Page=interface[Current_Page].button[Current_Pos].link;
-	Current_Pos=interface[Next_Page].init_pos;
-	drawScreen(&(interface[Next_Page]));// Chargement nouvelle page
+	unsigned int Next_Page=CPage.button[Current_Pos].link;
+  memcpy_P(&NPage,&interface[Next_Page],sizeof(Page));
+	Current_Pos=NPage.init_pos;
+	drawScreen(&NPage);// Chargement nouvelle page
 	// Modification page actuelle
+  memcpy_P(&CPage, &interface[Next_Page],sizeof(Page)); 
 	Current_Page=Next_Page;
 	Action=NONE;	
 };
@@ -207,9 +210,9 @@ void ClickPos(void) { // Charge la page désignée par la position
 void ForwVal(void) { // Incremente la valeur associée au bouton actuel ou avance d'une position
 	if (Edit) {
 	// Increment de la valeur pointée
-	(*(interface[Current_Page].button[Current_Pos].value))++; //TODO : prévoir un increment au dizieme ou à l'unité
+	(*(CPage.button[Current_Pos].value))++; //TODO : prévoir un increment au dizieme ou à l'unité
 	// Rafraichissement valeur du bouton actuel
-	refreshButton(&(interface[Current_Page].button[Current_Pos]), EDIT_COLOR);
+	refreshButton(&(CPage.button[Current_Pos]), EDIT_COLOR);
 	Action=NONE;
 	}
 	else {ForwPos();}
@@ -218,9 +221,9 @@ void ForwVal(void) { // Incremente la valeur associée au bouton actuel ou avanc
 void BackVal(void) { // Decremente la valeur associée au bouton actuel ou recule d'une position
 	if (Edit) {
 	// Decrement de la valeur pointée
-	(*(interface[Current_Page].button[Current_Pos].value))--;
+	(*(CPage.button[Current_Pos].value))--;
 	// Rafraichissement valeur du bouton actuel
-	refreshButton(&(interface[Current_Page].button[Current_Pos]), EDIT_COLOR);
+	refreshButton(&(CPage.button[Current_Pos]), EDIT_COLOR);
 	Action=NONE;
 	}
 	else {BackPos();}
@@ -229,12 +232,12 @@ void BackVal(void) { // Decremente la valeur associée au bouton actuel ou recul
 void ClickVal(void) { // Passe en mode edition ou en mode navigation
 	if (Edit) { 
 		// Rafraichissement couleur bouton actuel : edit à focus
-		drawButton(&(interface[Current_Page].button[Current_Pos]),FOCUS_COLOR);
+		drawButton(&(CPage.button[Current_Pos]),FOCUS_COLOR);
 		Edit=FALSE;
 	}
 	else { 
 		// Rafraichissement  couleur bouton actuel : focus à edit
-		drawButton(&(interface[Current_Page].button[Current_Pos]),EDIT_COLOR);
+		drawButton(&(CPage.button[Current_Pos]),EDIT_COLOR);
 		Edit=TRUE; 
 	}
 	Action=NONE;
@@ -268,10 +271,10 @@ void refreshValue(Value *value) { // Rafraichit uniquement la valeur
 };
 
 void refreshValues() {
-	unsigned int valNum=interface[Current_Page].numValues;
+	unsigned int valNum=CPage.numValues;
 	if (valNum) {
 		for (unsigned int i; i<valNum; i++) {
-			drawValue(&(interface[Current_Page].value[i]));		
+			drawValue(&(CPage.value[i]));		
 		}
 	}	
 };
@@ -401,14 +404,15 @@ void setup() {
 	Alarm.delay(500);
 	Alarm.timerRepeat(WEIGHT_RATE,getWeight);
 	// TODO : TODO TODO Find why it doesnt refresh
-	Alarm.timerRepeat(2,refreshValues);
+	Alarm.timerRepeat(1,refreshValues);
 // Initialisation de la balance (pas utile)
 //pinMode(A6,INPUT);
 
 // EFFECTEURS
 
 //Dessine l'écran de demarrage
-	drawScreen(&(interface[0]));
+  memcpy_P(&CPage,&interface[0],sizeof(Page));
+	drawScreen(&CPage);
 }
 
 
@@ -420,16 +424,19 @@ void loop() {
 		case NONE: // Pas d'action utilisateur à lancer
 			break;
 		case ENCODER_PLUS: // Encodeur avancé d'un cran
-			interface[Current_Page].button[Current_Pos].encP();
+			CPage.button[Current_Pos].encP();
 			break;
 		case CLICK: // Click avec l'encodeur
-			interface[Current_Page].button[Current_Pos].clic();
+			CPage.button[Current_Pos].clic();
 			break;
 		case ENCODER_MINUS: // Encodeur reculé d'un cran
-			interface[Current_Page].button[Current_Pos].encM();
+			CPage.button[Current_Pos].encM();
 			break;
 		case PUSH_BACK: // Bouton Back enfoncé
-			drawScreen(&(interface[interface[Current_Page].previous]));
+      unsigned int previous=CPage.previous;
+      Current_Page=previous;
+      memcpy_P(&CPage,&interface[previous],sizeof(Page));
+			drawScreen(&CPage);
 			Action=NONE;
 			break;
 	}
