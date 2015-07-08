@@ -91,15 +91,17 @@ volatile unsigned int Action=NONE;
 
 // VARIABLES CAPTEURS
 float Temp_actual=0; //Temperature actuelle
+float Temp_goal=60; // Temperature de consigne pour le thermostat
 
-float Temp_goal=0; // Temperature de consigne pour le thermostat
 float Time_left=90;
+float Time_total=90;
 bool Timer_set=FALSE;
 
 float analogWeigthAverage = 0;
 float Weigth_actual=0;//without tare
 float Weigth_corrected=0;// tare substracted from actual
 float Weigth_tare=0;
+
 //unsigned int Weight_readings[10]; // Liste de 10 lectures de la valeur de 0 à 1023
 float Scale_define[2][2] = {{0,84},{2,96}};
  // Tares enregistrée TODO :à reporter dans un fichier de configuration à mettre sur la carte SD ??
@@ -164,19 +166,19 @@ const Page interface[4] PROGMEM = {
 		} 
 	},
   {1,0, // Thermostat
-    4,{ // Affichages simples
-    {10,5,140,20,WHITE,BLUE, 2,"Thermostat"},// Titre : Thermostat
-    {100,28,50,20,WHITE,GREEN, 2,"deg"},// unité
-    {10,51,87,20,BLACK,RED,2,"Cible:"},
-    {10,74,87,20,BLACK,RED,2,"Temps:"}
+    3,{ // Affichages simples
+      {10,5,140,20,WHITE,BLUE, 2,"Thermostat"},// Titre : Thermostat
+      {10,51,87,20,BLACK,RED,2,"Cible:"},
+      {10,74,87,20,BLACK,RED,2,"Temps:"}
     },
-    1,{ // Valeurs à rafraichir
-    {{10,28,87,20,BLACK,RED,2,"deg"},TRUE,&Temp_actual}
+    2,{ // Valeurs à rafraichir
+      {{10,28,70,20,BLACK,RED,2,"deg"},TRUE,&Temp_actual},
+      {{80,28,69,20,WHITE,GREEN, 2,"deg"}, TRUE, &Time_left}//Temps restant
     },
     3,{ // Boutons
-    {{100,51,50,20,BLACK,RED,2,NULL},FALSE,&Temp_goal,1,2,1,ForwVal,BackVal,ClickVal},
-    {{100,74,50,20,BLACK,RED,2,"..."},FALSE,NULL,2,0,1,ForwPos,BackPos,ClickPos},
-    {{49,97,77,20,BLACK,RED,2,"Start"},FALSE,NULL,0,1,1,ForwPos,BackPos,ClickPos}
+      {{100,51,50,20,BLACK,RED,2,NULL},FALSE,&Temp_goal,1,2,1,ForwVal,BackVal,ClickVal},
+      {{100,74,50,20,BLACK,RED,2,NULL},FALSE,&Time_total,2,0,1,ForwVal,BackVal,ClickVal},
+      {{49,97,77,20,BLACK,RED,2,"Start"},FALSE,NULL,0,1,1,ForwPos,BackPos,ClickAction}
     }
   }
 };
@@ -216,11 +218,11 @@ void ClickPos(void) { // Charge la page désignée par la position
 
 void ForwVal(void) { // Incremente la valeur associée au bouton actuel ou avance d'une position
 	if (Edit) {
-	// Increment de la valeur pointée
-	(*(CPage.button[Current_Pos].value))++; //TODO : prévoir un increment au dizieme ou à l'unité
-	// Rafraichissement valeur du bouton actuel
-	drawButtonValue(&(CPage.button[Current_Pos]), EDIT_COLOR);
-	Action=NONE;
+  	// Increment de la valeur pointée
+  	(*(CPage.button[Current_Pos].value))++; //TODO : prévoir un increment au dizieme ou à l'unité
+  	// Rafraichissement valeur du bouton actuel
+  	drawButtonValue(&(CPage.button[Current_Pos]), EDIT_COLOR);
+  	Action=NONE;
 	}
 	else {ForwPos();}
 };
@@ -248,6 +250,21 @@ void ClickVal(void) { // Passe en mode edition ou en mode navigation
 		Edit=TRUE; 
 	}
 	Action=NONE;
+};
+
+//Pour le moment uniquement pour le timer
+void ClickAction(void) { // Start/Stop
+  drawArea(&(CPage.button[Current_Pos].area), FOCUS_COLOR);
+  if (Timer_set) { 
+    drawText(&(CPage.button[Current_Pos].area),"Start", FOCUS_COLOR);
+    Timer_set=FALSE;
+  }
+  else { 
+    // Rafraichissement du texte actuel
+    drawText(&(CPage.button[Current_Pos].area),"Stop", FOCUS_COLOR);
+    Timer_set=TRUE;
+  }
+  Action=NONE;
 };
 
 void Tare(void) {
@@ -358,7 +375,7 @@ void playTone() { // Joue une note A4 pendant 1000ms
 //SUIVI CAPTEURS
 void getTemp() {
 	Thermometer.requestTemperatures();
-  	Alarm.delay(500);
+  Alarm.delay(500);
 	Temp_actual=Thermometer.getTempC(ThermometerAdress);
 	Alarm.delay(100);
 };
@@ -373,7 +390,7 @@ void getWeight() {
   //int analogValue = analogRead(A6);
 	Weigth_actual=mapWeigth(analogWeigthAverage,Scale_define[0][1],Scale_define[1][1],Scale_define[0][0],Scale_define[1][0]);
   Weigth_corrected=Weigth_actual-Weigth_tare;
-  };
+};
 
 
 float mapWeigth(float x, float in_min, float in_max, float out_min, float out_max){
@@ -428,7 +445,7 @@ void setup() {
 
 
   // EVENEMENTS CAPTEURS
-  	Alarm.timerRepeat(TEMPERATURE_RATE,getTemp);
+  Alarm.timerRepeat(TEMPERATURE_RATE,getTemp);
 	Alarm.delay(500);
 	Alarm.timerRepeat(WEIGHT_RATE,getWeight);
 	// TODO : TODO TODO Find why it doesnt refresh

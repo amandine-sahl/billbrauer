@@ -34,11 +34,11 @@ typedef struct {
 */
 typedef struct {
  	unsigned char  x; // position X
-        unsigned char y; // position Y
-        unsigned char w; // largeur
-        unsigned char h; // hauteur
-        unsigned int f; // couleur du texte 
-        unsigned int b; // couleur d'arrière plan
+  unsigned char y; // position Y
+  unsigned char w; // largeur
+  unsigned char h; // hauteur
+  unsigned int f; // couleur du texte 
+  unsigned int b; // couleur d'arrière plan
 	unsigned int s; // taille du texte
 	char text[12]; // texte à afficher dans le cas d'un affichage simple
 }Display;
@@ -63,14 +63,14 @@ typedef struct {
 }Position;
 
 typedef struct {
-        unsigned int previous; // previous page number for PushBack
-        unsigned int init_pos; // initial position for ChangeScreen
+  unsigned int previous; // previous page number for PushBack
+  unsigned int init_pos; // initial position for ChangeScreen
 	unsigned int numDisplays; // correspond au nombre réel de zones d'affichage simple
-        Display display[5];// correspond aux affichages simples // pas plus de cinq ici par page
+  Display display[5];// correspond aux affichages simples // pas plus de cinq ici par page
 	unsigned int numValues; // nombre de valeur pour les for
 	Value value[4]; // correspond aux variables rafraichies automatiquement
 	unsigned int numButtons; //nombre de valeur pour les for
-        Position button[4]; // correspond aux zones selectionnables
+  Position button[4]; // correspond aux zones selectionnables
 }Page;
 
 
