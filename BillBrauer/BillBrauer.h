@@ -107,8 +107,8 @@ void drawText(Display *area, char text[12], unsigned int bg_color); // Affiche u
 
 //FONCTION SUIVI CAPTEURS
 void getTemp();
-void getWeight();
-float mapWeight(float x, float in_min, float in_max, float out_min, float out_max);
+void getWeigth();
+float mapWeigth(float x, float in_min, float in_max, float out_min, float out_max);
 
 //FONCTION ACTION UTILISATEURS
 void receiveEncoder(void);

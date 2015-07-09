@@ -81,10 +81,6 @@ static DeviceAddress ThermometerAdress={0x28,0x3E,0x40,0xCD,0x05,0x00,0x00,0x98}
 volatile unsigned int Current_Page=0;
 /* TODO Find a way to use pointer nicely to point to the current page : needs an initialization part in the setup() fonction*/
 Page CPage; //Current copy of the page from the PROGMEM
-Page NPage;
-Position PButton;
-Position CButton;
-Position NButton;
 volatile unsigned int Current_Pos=0;
 volatile bool Edit=FALSE;
 volatile unsigned int Action=NONE;
@@ -101,6 +97,8 @@ float analogWeigthAverage = 0;
 float Weigth_actual=0;//without tare
 float Weigth_corrected=0;// tare substracted from actual
 float Weigth_tare=0;
+
+int Speed_actual =0;
 
 //unsigned int Weight_readings[10]; // Liste de 10 lectures de la valeur de 0 à 1023
 float Scale_define[2][2] = {{0,84},{2,96}};
@@ -139,46 +137,46 @@ const Page interface[4] PROGMEM = {
 		0,{}, // Affichages simples
 		0,{}, // Valeurs à rafraichir
 		2,{ // Boutons
-		{{10,10,140,50,BLACK,RED,2,"Manuel"},FALSE,NULL,1,1,1,ForwPos,BackPos,ClickPos}, 
-		//{x,y,w,h,color,bg_color,text_size,text,dec,val_ptr,txt_ptr,prev,next,link,encP,encM,Click}
-		{{10,65,140,50,BLACK,RED,2,"Automatique"},FALSE,NULL,0,0,1,ForwPos,BackPos,ClickPos}
+  		{{10,10,140,50,BLACK,RED,2,"Manuel"},FALSE,NULL,1,1,1,ForwPos,BackPos,ClickPos}, 
+  		//{x,y,w,h,color,bg_color,text_size,text,dec,val_ptr,txt_ptr,prev,next,link,encP,encM,Click}
+  		{{10,65,140,50,BLACK,RED,2,"Automatique"},FALSE,NULL,0,0,1,ForwPos,BackPos,ClickPos}
 		} 
 	},
 	{0,0, // Mode Manuel
 		0,{}, // Affichages simples
 		0,{}, // Valeurs à rafraichir
 		3,{ // Boutons
-		{{10,10,140,30,BLACK,RED,2,"Balance"},FALSE,NULL,1,2,2,ForwPos,BackPos,ClickPos},
-		{{10,45,140,30,BLACK,RED,2,"Thermostat"},FALSE,NULL,2,1,3,ForwPos,BackPos,ClickPos},
-		{{10,80,140,30,BLACK,RED,2,"Moteur"},FALSE,NULL,0,1,0,ForwPos,BackPos,ClickPos}
+  		{{10,10,140,30,BLACK,RED,2,"Balance"},FALSE,NULL,1,2,2,ForwPos,BackPos,ClickPos},
+  		{{10,45,140,30,BLACK,RED,2,"Thermostat"},FALSE,NULL,2,0,3,ForwPos,BackPos,ClickPos},
+		  {{10,80,140,30,BLACK,RED,2,"Moteur"},FALSE,NULL,0,1,0,ForwPos,BackPos,ClickPos}
 		} 
 	},
 	{1,0, // Balance
 		1,{ // Affichages simples
-		{100,10,50,30,BLACK,RED, 2,"kg"}// unité mesure instantanée
+		  {100,10,50,30,BLACK,RED, 2,"kg"}// unité mesure instantanée
 		}, 
 		1,{ // Valeurs à rafraichir
-		{{10,10,90,30,BLACK,RED,2,"kg"},TRUE,&Weigth_corrected}
+		  {{10,10,90,30,BLACK,RED,2,"kg"},TRUE,&Weigth_corrected}
 		}, 
 		2,{ // Boutons
-		{{10,45,140,30,BLACK,RED,2,"Tarer"},FALSE,NULL,1,1,0,ForwPos,BackPos,Tare},
-		{{10,80,140,30,BLACK,RED,2,"Regler"},FALSE,NULL,0,0,3,ForwPos,BackPos,ClickPos}
+  		{{10,45,140,30,BLACK,RED,2,"Tarer"},FALSE,NULL,1,1,0,ForwPos,BackPos,Tare},
+  		{{10,80,140,30,BLACK,RED,2,"Regler"},FALSE,NULL,0,0,3,ForwPos,BackPos,ClickPos}
 		} 
 	},
   {1,0, // Thermostat
     3,{ // Affichages simples
       {10,5,140,20,WHITE,BLUE, 2,"Thermostat"},// Titre : Thermostat
-      {10,51,87,20,BLACK,RED,2,"Cible:"},
-      {10,74,87,20,BLACK,RED,2,"Temps:"}
+      {10,51,87,20,BLACK,MAGENTA,2,"Cible:"},
+      {10,74,87,20,BLACK,MAGENTA,2,"Temps:"}
     },
     2,{ // Valeurs à rafraichir
-      {{10,28,70,20,BLACK,RED,2,"deg"},TRUE,&Temp_actual},
-      {{80,28,69,20,WHITE,GREEN, 2,"deg"}, TRUE, &Time_left}//Temps restant
+      {{10,28,70,20,BLACK,CYAN,2,"deg"},TRUE,&Temp_actual},
+      {{80,28,69,20,BLACK,CYAN, 2,"deg"}, TRUE, &Time_left}//Temps restant
     },
     3,{ // Boutons
       {{100,51,50,20,BLACK,RED,2,NULL},FALSE,&Temp_goal,1,2,1,ForwVal,BackVal,ClickVal},
       {{100,74,50,20,BLACK,RED,2,NULL},FALSE,&Time_total,2,0,1,ForwVal,BackVal,ClickVal},
-      {{49,97,77,20,BLACK,RED,2,"Start"},FALSE,NULL,0,1,1,ForwPos,BackPos,ClickAction}
+      {{49,97,77,20,BLACK,RED,2,"START"},FALSE,NULL,0,1,1,ForwPos,BackPos,ClickAction}
     }
   }
 };
@@ -206,13 +204,11 @@ void BackPos(void) { // Recule le focus à la position précédente
 };
 
 void ClickPos(void) { // Charge la page désignée par la position
-	unsigned int Next_Page=CPage.button[Current_Pos].link;
-  memcpy_P(&NPage,&interface[Next_Page],sizeof(Page));
-	Current_Pos=NPage.init_pos;
-	drawScreen(&NPage);// Chargement nouvelle page
-	// Modification page actuelle
-  memcpy_P(&CPage, &interface[Next_Page],sizeof(Page)); 
-	Current_Page=Next_Page;
+  // Remplacement de la page actuelle par la page liée
+  Current_Page=CPage.button[Current_Pos].link;
+  memcpy_P(&CPage,&interface[Current_Page],sizeof(Page));
+	Current_Pos=CPage.init_pos;
+	drawScreen(&CPage);// Chargement nouvelle page
 	Action=NONE;	
 };
 
@@ -229,11 +225,11 @@ void ForwVal(void) { // Incremente la valeur associée au bouton actuel ou avanc
 
 void BackVal(void) { // Decremente la valeur associée au bouton actuel ou recule d'une position
 	if (Edit) {
-	// Decrement de la valeur pointée
-	(*(CPage.button[Current_Pos].value))--;
-	// Rafraichissement valeur du bouton actuel
-	drawButtonValue(&(CPage.button[Current_Pos]), EDIT_COLOR);
-	Action=NONE;
+  	// Decrement de la valeur pointée
+  	(*(CPage.button[Current_Pos].value))--;
+  	// Rafraichissement valeur du bouton actuel
+  	drawButtonValue(&(CPage.button[Current_Pos]), EDIT_COLOR);
+  	Action=NONE;
 	}
 	else {BackPos();}
 };
@@ -256,13 +252,15 @@ void ClickVal(void) { // Passe en mode edition ou en mode navigation
 void ClickAction(void) { // Start/Stop
   drawArea(&(CPage.button[Current_Pos].area), FOCUS_COLOR);
   if (Timer_set) { 
-    drawText(&(CPage.button[Current_Pos].area),"Start", FOCUS_COLOR);
+    drawText(&(CPage.button[Current_Pos].area),"START", FOCUS_COLOR);
     Timer_set=FALSE;
+    stopMotor();
   }
   else { 
     // Rafraichissement du texte actuel
-    drawText(&(CPage.button[Current_Pos].area),"Stop", FOCUS_COLOR);
+    drawText(&(CPage.button[Current_Pos].area),"STOP", FOCUS_COLOR);
     Timer_set=TRUE;
+    startMotor();
   }
   Action=NONE;
 };
@@ -271,6 +269,11 @@ void Tare(void) {
   Weigth_tare=Weigth_actual;
 };
 
+//LED
+//TODO : Led non fonctionelle 
+//void lightRed(void) {
+//  analogWrite(A0,255);
+//}
 
 //AFFICHAGE
 void drawDisplay(Display *area) { // Affiche les affichages simples
@@ -337,7 +340,7 @@ void drawScreen(Page *screen) { // Affiche la page demandée
 			drawValue(&(screen->value[i]));		
 		}
 	}
-	
+ 
 	if (screen->numButtons) { // Affiche les boutons
 		for (unsigned int i; i<screen->numButtons; i++) {
 			unsigned int bg_color=screen->button[i].area.b;
@@ -366,11 +369,33 @@ void drawText(Display *area, char text[12], unsigned int bg_color) { // Affiche 
 	Screen.text(text,area->x+X_TEXT_PADDING,area->y+Y_TEXT_PADDING);
 };
 
+
+//EFFECTEURS
 //ALERTE SONORE
 void playTone() { // Joue une note A4 pendant 1000ms
 	tone(7,440,200);
 	//noTone(7);
 };
+
+void startMotor() {
+  //Commence par démarrer le moteur progressivement
+  analogWrite(5,160);//Impulsion de démarrage à 75%
+  Alarm.delay(50);
+  for (int i=40;i<=210;i++){
+    Speed_actual=i;
+    analogWrite(5,i);
+    Alarm.delay(30);
+  }
+}
+
+void stopMotor() {
+  for (int i=Speed_actual;i>=40;i--){
+    Speed_actual=i;
+    analogWrite(5,i);
+    Alarm.delay(20);
+  }
+  analogWrite(5,LOW);
+}
 
 //SUIVI CAPTEURS
 void getTemp() {
@@ -380,7 +405,7 @@ void getTemp() {
 	Alarm.delay(100);
 };
 
-void getWeight() {
+void getWeigth() {
 	/*unsigned int analogValTotal=0;
 	for (unsigned int i; i<WEIGHT_READINGS; i++) {
 		analogValTotal+=analogRead(A6);
@@ -435,6 +460,7 @@ void setup() {
 // Initialisation du bouton poussoir
 // normalement utiliser pour les retours mais puisque le bouton de l'encodeur ne marche pas il faut utiliser celui ci pour la fonction doClick
 	pinMode(PB, INPUT);
+
  
  // CAPTEURS
  // Initialisation du thermometre 
@@ -447,7 +473,7 @@ void setup() {
   // EVENEMENTS CAPTEURS
   Alarm.timerRepeat(TEMPERATURE_RATE,getTemp);
 	Alarm.delay(500);
-	Alarm.timerRepeat(WEIGHT_RATE,getWeight);
+	Alarm.timerRepeat(WEIGHT_RATE,getWeigth);
 	// TODO : TODO TODO Find why it doesnt refresh
 	Alarm.timerRepeat(1,refreshValues);
 // Initialisation de la balance (pas utile)
@@ -458,6 +484,7 @@ void setup() {
 //Dessine l'écran de demarrage
   memcpy_P(&CPage,&interface[0],sizeof(Page));
 	drawScreen(&CPage);
+  playTone();
 }
 
 
@@ -480,9 +507,9 @@ void loop() {
 			CPage.button[Current_Pos].encM();
 			break;
 		case PUSH_BACK: // Bouton Back enfoncé
-      unsigned int previous=CPage.previous;
-      Current_Page=previous;
-      memcpy_P(&CPage,&interface[previous],sizeof(Page));
+      Current_Page=CPage.previous;
+      memcpy_P(&CPage,&interface[Current_Page],sizeof(Page));
+      Current_Pos=CPage.init_pos;
 			drawScreen(&CPage);
 			Action=NONE;
 			break;
