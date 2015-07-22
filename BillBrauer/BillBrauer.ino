@@ -60,6 +60,10 @@ BillBrauer est une cuve de brassage avec moteur, une balance integré avec stock
 #define WEIGHT_RATE 1
 #define SCREEN_RATE 0.1
 #define WEIGHT_READINGS 10
+#define THERMOSTAT_RATE 1
+#define HYSTERESIS 0.5
+#define MOTOR_INIT_TIME 5000
+#define MOTOR_STOP_TIME 10000
 
 //Definition des actions pour l'interface utilisateur
 #define NONE 0
@@ -87,18 +91,25 @@ volatile unsigned int Action=NONE;
 
 // VARIABLES CAPTEURS
 float Temp_actual=0; //Temperature actuelle
-float Temp_goal=60; // Temperature de consigne pour le thermostat
+float Temp_goal=32; // Temperature de consigne pour le thermostat
+float Temp_hysteresis=0.5;
 
-float Time_left=90;
-float Time_total=90;
+float Time_left=45;
+float Time_total=45;
 bool Timer_set=FALSE;
+bool Timer_init=FALSE;
 
 float analogWeigthAverage = 0;
 float Weigth_actual=0;//without tare
 float Weigth_corrected=0;// tare substracted from actual
 float Weigth_tare=0;
 
-int Speed_actual =0;
+// VARIABLES EFFECTEURS
+int Speed_actual=0;
+bool Heat_init=FALSE;
+bool Heat_actual=FALSE;
+bool Heat_stop=FALSE;
+
 
 //unsigned int Weight_readings[10]; // Liste de 10 lectures de la valeur de 0 à 1023
 float Scale_define[2][2] = {{0,84},{2,96}};
@@ -252,18 +263,26 @@ void ClickVal(void) { // Passe en mode edition ou en mode navigation
 void ClickAction(void) { // Start/Stop
   drawArea(&(CPage.button[Current_Pos].area), FOCUS_COLOR);
   if (Timer_set) { 
-    drawText(&(CPage.button[Current_Pos].area),"START", FOCUS_COLOR);
-    Timer_set=FALSE;
-    stopMotor();
+    stopTimer();
   }
   else { 
     // Rafraichissement du texte actuel
-    drawText(&(CPage.button[Current_Pos].area),"STOP", FOCUS_COLOR);
-    Timer_set=TRUE;
-    startMotor();
+    setTimer();
   }
   Action=NONE;
 };
+
+void setTimer () {
+  Time_left=Time_total;
+  drawText(&(CPage.button[Current_Pos].area),"STOP", FOCUS_COLOR);
+  Timer_set=TRUE;
+}
+
+void stopTimer () {
+  drawText(&(CPage.button[Current_Pos].area),"START", FOCUS_COLOR);
+  Timer_set=FALSE;
+  Timer_init=FALSE;
+}
 
 void Tare(void) {
   Weigth_tare=Weigth_actual;
@@ -397,6 +416,46 @@ void stopMotor() {
   analogWrite(5,LOW);
 }
 
+void startHeat() {
+  Heat_init=TRUE; 
+  //Pour le moment pas de mise en route de la chauffe
+  startMotor();
+  Alarm.delay(MOTOR_INIT_TIME);
+  //digitalWrite(6,HIGH);
+  Heat_actual=TRUE;
+  Heat_init=FALSE;
+}
+
+void stopHeat() {
+  Heat_stop=TRUE;
+  ////digitalWrite(6,LOW);
+  Heat_actual=FALSE;
+  Alarm.delay(MOTOR_STOP_TIME);
+  stopMotor();
+  Heat_stop=FALSE;
+  // Pour le moment pas de mise en route de la chauffe
+
+}
+
+//THERMOSTAT
+void checkTemp() {
+  if (Timer_set) {
+    if (Temp_actual > Temp_goal) {
+      if (!Timer_init) {Timer_init=TRUE;}
+      if (Temp_actual > (Temp_goal + Temp_hysteresis) and !Heat_stop and Heat_actual){stopHeat();} 
+    }
+    
+    if (Temp_actual < (Temp_goal - Temp_hysteresis) and !Heat_init and !Heat_actual){startHeat();}
+  }
+  if (!Timer_set and Heat_actual and !Heat_stop) {stopHeat();}
+  
+}
+
+void decreaseTimer () {
+  if (Timer_set and Timer_init) {Time_left--;}
+  if (!Time_left) {stopTimer();} 
+}
+
 //SUIVI CAPTEURS
 void getTemp() {
 	Thermometer.requestTemperatures();
@@ -480,7 +539,12 @@ void setup() {
 //pinMode(A6,INPUT);
 
 // EFFECTEURS
-
+  //Initialisation du relais pour la chauffe
+  pinMode(6,OUTPUT);
+  digitalWrite(6,LOW);
+  Alarm.timerRepeat(THERMOSTAT_RATE,checkTemp);
+  Alarm.timerRepeat(60,decreaseTimer); //Pour l'instant gestion du temps assez rudimentaire
+  // Pour etre sur que la résistance ne soit pas en marche directement
 //Dessine l'écran de demarrage
   memcpy_P(&CPage,&interface[0],sizeof(Page));
 	drawScreen(&CPage);
@@ -493,6 +557,7 @@ void loop() {
   //TODO : change the way to get the weigth and smooth the value
   int analogWeigth=analogRead(A6); // prend 1ms normalement, il faut en faire plusieurs et faire une moyenne
   analogWeigthAverage=0.99*analogWeigthAverage + 0.01*analogWeigth;
+  //ACTIONS UTILISATEURS
 	if (receiveBackClick()) { Action=PUSH_BACK;} // Pour la lisibilite seulement : test de l'état du bouton Back
 	switch (Action) { // Vérifie si une action utilisateur a été demandée et lance le callback correspondant à l'état actuel le cas échéant
 		case NONE: // Pas d'action utilisateur à lancer
